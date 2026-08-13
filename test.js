@@ -1,17 +1,42 @@
 const express = require('express');
-const { Pool } = require('pg');
 const cors = require('cors');
+const pool = require('./db');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'restaurant',
-  password: '123',
-  port: 5432,
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Database health check failed:', error.message);
+    res.status(503).json({ ok: false });
+  }
+});
+
+app.get('/api/dashboard', async (_req, res) => {
+  try {
+    const [menu, tables, openOrders, reservations, inventory] = await Promise.all([
+      pool.query('SELECT COUNT(*)::int AS total FROM artikujt_menu WHERE eshte_i_disponueshem IS DISTINCT FROM false'),
+      pool.query("SELECT COUNT(*) FILTER (WHERE gjendja = 'E Hapur')::int AS open, COUNT(*)::int AS total FROM tavolinat"),
+      pool.query("SELECT COUNT(*)::int AS total FROM porosite WHERE statusi_porosise = 'E Hapur'"),
+      pool.query('SELECT COUNT(*)::int AS total FROM rezervimet WHERE data_rezervimit >= CURRENT_DATE'),
+      pool.query('SELECT COUNT(*)::int AS low FROM pije_inventar WHERE stoku_aktual <= stoku_minimal'),
+    ]);
+
+    res.json({
+      menuItems: menu.rows[0].total,
+      tables: tables.rows[0],
+      openOrders: openOrders.rows[0].total,
+      upcomingReservations: reservations.rows[0].total,
+      lowInventory: inventory.rows[0].low,
+    });
+  } catch (error) {
+    console.error('Dashboard query failed:', error.message);
+    res.status(500).json({ error: 'Unable to load dashboard data.' });
+  }
 });
 
 // ========== AUTHENTICATION ==========
@@ -563,8 +588,4 @@ app.delete('/api/rezervimet/:id', async (req, res) => {
   }
 });
 
-app.listen(5000, () => {
-  console.log('🚀 Server: http://localhost:5000');
-  console.log('📊 Statistics from DATABASE VIEWS');
-  console.log('📦 Inventory from pije_inventar table');
-});
+module.exports = app;
