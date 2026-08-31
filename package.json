@@ -1,20 +1,21 @@
 {
-  "name": "biteat",
+  "name": "biteat-api",
   "version": "1.0.0",
-  "private": true,
-  "description": "BitEat restaurant dashboard and Vercel API",
+  "description": "BitEat restaurant API (Express, deployed as Vercel serverless functions)",
   "main": "api/index.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test"
-  },
-  "engines": {
-    "node": ">=20"
+    "start": "node api/index.js",
+    "dev": "nodemon api/index.js"
   },
   "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "pg": "^8.17.2"
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "pg": "^8.11.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
