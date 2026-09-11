@@ -87,39 +87,39 @@ export default function POSPage({ perdoruesi }) {
 
   return (
     <div className="p-8 max-w-7xl mx-auto grid grid-cols-3 gap-6">
-      <div className="col-span-2 bg-white p-8 rounded-3xl shadow-xl">
+      <div className="col-span-2 bg-surface p-8 rounded-3xl shadow-xl">
         <h2 className="text-2xl font-black mb-6">Krijo Porosi</h2>
         <div className="grid grid-cols-2 gap-4 mb-6">
           <select value={formPorosi.tavoline_id} onChange={(e) => setFormPorosi({...formPorosi, tavoline_id: e.target.value})} 
-            className="p-4 bg-slate-50 rounded-xl font-bold">
+            className="p-4 bg-subtle rounded-xl font-bold">
             <option value="">Zgjidhni Tavolinë</option>
             {tavolinat.map(t => <option key={t.tavoline_id} value={t.tavoline_id}>Tavolina {t.numri_tavolines}</option>)}
           </select>
           <select value={formPorosi.punonjes_id} onChange={(e) => setFormPorosi({...formPorosi, punonjes_id: e.target.value})} 
-            disabled={perdoruesi?.lloji === 'kamarier'} className="p-4 bg-slate-50 rounded-xl font-bold">
+            disabled={perdoruesi?.lloji === 'kamarier'} className="p-4 bg-subtle rounded-xl font-bold">
             <option value="">Kamarier</option>
             {punonjesit.map(p => <option key={p.punonjes_id} value={p.punonjes_id}>{p.emri}</option>)}
           </select>
         </div>
         <div className="space-y-4">
           <select value={kategoriZgjedhur} onChange={(e) => setKategoriZgjedhur(e.target.value)} 
-            className="w-full p-4 bg-orange-50 rounded-xl font-bold">
+            className="w-full p-4 bg-orange-50 dark:bg-orange-500/10 rounded-xl font-bold">
             <option value="">Të gjitha</option>
             {kategorite.map(k => <option key={k.kategori_id} value={k.kategori_id}>{k.emri}</option>)}
           </select>
           <select value={artikullZgjedhur} onChange={(e) => setArtikullZgjedhur(e.target.value)} 
-            className="w-full p-4 bg-slate-50 rounded-xl font-bold">
+            className="w-full p-4 bg-subtle rounded-xl font-bold">
             <option value="">Artikulli</option>
             {artikujtMenu.map(a => <option key={a.artikull_id} value={a.artikull_id}>{a.emri} - {a.cmimi}L</option>)}
           </select>
           <input type="number" min="1" value={sasia} onChange={(e) => setSasia(e.target.value)} 
-            className="w-full p-4 bg-slate-50 rounded-xl font-bold" />
+            className="w-full p-4 bg-subtle rounded-xl font-bold" />
           <button onClick={shtoNeShporte} className="w-full bg-green-600 text-white p-4 rounded-xl font-black flex items-center justify-center gap-2">
             <Plus /> SHTO
           </button>
         </div>
       </div>
-      <div className="bg-gradient-to-br from-orange-500 to-red-500 p-8 rounded-3xl text-white">
+      <div className="bg-gradient-to-br from-orange-500 to-red-500 dark:from-orange-700 dark:to-red-700 p-8 rounded-3xl text-white">
         <h2 className="text-2xl font-black mb-6"><ShoppingCart className="inline" /> SHPORTA</h2>
         {shporta.map(i => (
           <div key={i.artikull_id} className="bg-white/20 p-4 rounded-xl mb-3">
@@ -141,7 +141,7 @@ export default function POSPage({ perdoruesi }) {
             <div className="border-t border-white/30 pt-4 mt-4 text-3xl font-black">
               TOTAL: {shporta.reduce((s, i) => s + i.totali, 0)}L
             </div>
-            <button onClick={handleSaveOrder} className="w-full bg-white text-orange-600 p-4 rounded-xl font-black mt-4">
+            <button onClick={handleSaveOrder} className="w-full bg-surface text-orange-600 dark:text-orange-400 p-4 rounded-xl font-black mt-4">
               <Save className="inline" /> RUAJ
             </button>
           </>

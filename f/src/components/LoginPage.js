@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Utensils, LogIn } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 const API_BASE = process.env.REACT_APP_API_URL || '';
 
@@ -62,18 +63,19 @@ export default function LoginPage({ setPerdoruesi, setFaqja }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-500 to-red-600">
-      <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-500 to-red-600 dark:from-orange-700 dark:to-red-800">
+      <ThemeToggle variant="onColor" className="absolute top-6 right-6" />
+      <div className="bg-surface p-10 rounded-3xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <Utensils className="text-orange-600" size={48} />
+          <Utensils className="text-orange-600 dark:text-orange-400" size={48} />
           <h1 className="text-4xl font-black">BitEat</h1>
         </div>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-slate-600 mb-2">Lloji</label>
+            <label className="block text-sm font-bold text-ink-muted mb-2">Lloji</label>
             <select value={lloji} onChange={(e) => { setLloji(e.target.value); setEmri(''); setPassword(''); setKamarierZgjedhur(''); }} 
-              className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-200 focus:border-orange-500 outline-none">
+              className="w-full p-4 bg-subtle rounded-xl font-bold border-2 border-line focus:border-orange-500 outline-none">
               <option value="admin">Administrator</option>
               <option value="menaxher">Menaxher</option>
               <option value="kamarier">Kamarier</option>
@@ -83,31 +85,31 @@ export default function LoginPage({ setPerdoruesi, setFaqja }) {
           {lloji === 'kamarier' ? (
             <>
               <div>
-                <label className="block text-sm font-bold text-slate-600 mb-2">Emri</label>
+                <label className="block text-sm font-bold text-ink-muted mb-2">Emri</label>
                 <select value={kamarierZgjedhur} onChange={(e) => setKamarierZgjedhur(e.target.value)}
-                  className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-200 focus:border-orange-500 outline-none">
+                  className="w-full p-4 bg-subtle rounded-xl font-bold border-2 border-line focus:border-orange-500 outline-none">
                   <option value="">-- Zgjidhni --</option>
                   {kamarieret.map(k => <option key={k.punonjes_id} value={k.punonjes_id}>{k.emri}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-600 mb-2">Fjalëkalimi</label>
+                <label className="block text-sm font-bold text-ink-muted mb-2">Fjalëkalimi</label>
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
-                  className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-200 focus:border-orange-500 outline-none"
+                  className="w-full p-4 bg-subtle rounded-xl font-bold border-2 border-line focus:border-orange-500 outline-none"
                   onKeyPress={(e) => e.key === 'Enter' && handleLogin()} />
               </div>
             </>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-bold text-slate-600 mb-2">Emri</label>
+                <label className="block text-sm font-bold text-ink-muted mb-2">Emri</label>
                 <input type="text" value={emri} onChange={(e) => setEmri(e.target.value)} 
-                  className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-200 focus:border-orange-500 outline-none" />
+                  className="w-full p-4 bg-subtle rounded-xl font-bold border-2 border-line focus:border-orange-500 outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-600 mb-2">Fjalëkalimi</label>
+                <label className="block text-sm font-bold text-ink-muted mb-2">Fjalëkalimi</label>
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
-                  className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-200 focus:border-orange-500 outline-none"
+                  className="w-full p-4 bg-subtle rounded-xl font-bold border-2 border-line focus:border-orange-500 outline-none"
                   onKeyPress={(e) => e.key === 'Enter' && handleLogin()} />
               </div>
             </>

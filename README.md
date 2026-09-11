@@ -2,9 +2,52 @@
 
 Full-stack app:
 
-- **Frontend** — React (Create React App) in [`f/`](f/)
+- **Frontend** — React (Create React App) in [`f/`](f/), light + dark themed
 - **API** — Express in [`api/index.js`](api/index.js), deployed as Vercel serverless functions
 - **Database** — PostgreSQL (Supabase in production)
+
+## Theming
+
+The web client ships light and dark. The choice lives in `localStorage` under
+`biteat-theme` and has three values: `light`, `dark`, `system` (default — follows
+the OS and keeps following it if it changes while the app is open).
+
+Three pieces make it work:
+
+| File | Role |
+|------|------|
+| `f/public/index.html` | Inline bootstrap script applies the stored theme **before first paint** (no white flash), then configures Tailwind with `darkMode: 'class'` and the semantic colour names |
+| `f/src/index.css` | The tokens themselves — one `:root` block for light, one `.dark` block for dark |
+| `f/src/theme/ThemeProvider.js` | React state, OS-preference listener, persistence, and the `dark` class on `<html>` |
+
+### Writing themed markup
+
+Use the semantic classes, not raw slate/white — they resolve to CSS variables and
+need no `dark:` variant:
+
+| Use | Instead of |
+|-----|-----------|
+| `bg-canvas` | page background (`bg-slate-50`) |
+| `bg-surface` | cards and modals (`bg-white`) |
+| `bg-subtle` | rows and inputs inside a card (`bg-slate-50`) |
+| `bg-muted` | chips, secondary buttons, chart tracks (`bg-slate-100/200/300`) |
+| `border-line` | borders and dividers (`border-slate-200`) |
+| `text-ink` | primary text |
+| `text-ink-muted` | secondary text (`text-slate-500/600`) |
+| `text-ink-subtle` | captions and empty states (`text-slate-400`) |
+
+Bare `border`, `border-b` and `border-t` already pick up the themed colour via the
+`borderColor.DEFAULT` override, so they need nothing.
+
+Only two things still need explicit `dark:` variants: **status tints** (the
+green/red/yellow/orange badges and tiles, which use a translucent `500/15` fill
+and a `300` text shade on dark) and the **brand gradient**, which is dimmed so it
+does not glare in a dark dining room.
+
+> Tailwind is currently loaded from the **play CDN** (`cdn.tailwindcss.com`), which
+> is not intended for production — it ships a compiler to every visitor and blocks
+> first paint. Moving it to a real PostCSS build is worth doing; the token config in
+> `index.html` moves to `tailwind.config.js` unchanged when that happens.
 
 ## Production layout
 

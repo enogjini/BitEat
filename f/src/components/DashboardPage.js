@@ -192,7 +192,7 @@ export default function DashboardPage({ perdoruesi }) {
         <div className="flex gap-4 mb-6 flex-wrap">
           {['xhiro', 'produktet', 'inventar', 'porosite', 'statistika'].map(t => (
             <button key={t} onClick={() => setTab(t)} 
-              className={`px-6 py-3 rounded-xl font-black ${tab === t ? 'bg-orange-600 text-white' : 'bg-white'}`}>
+              className={`px-6 py-3 rounded-xl font-black ${tab === t ? 'bg-orange-600 text-white' : 'bg-surface'}`}>
               {t.toUpperCase()}
             </button>
           ))}
@@ -203,35 +203,35 @@ export default function DashboardPage({ perdoruesi }) {
         <>
           {tab === 'xhiro' && xhiro && (
             <div className="grid grid-cols-3 gap-6">
-              <div className="bg-white p-8 rounded-3xl shadow-xl">
-                <BarChart3 className="text-orange-600 mb-4" size={48} />
-                <p className="text-slate-500 text-sm">Xhiro Ditore</p>
+              <div className="bg-surface p-8 rounded-3xl shadow-xl">
+                <BarChart3 className="text-orange-600 dark:text-orange-400 mb-4" size={48} />
+                <p className="text-ink-muted text-sm">Xhiro Ditore</p>
                 <p className="text-4xl font-black">{xhiro.xhiro_totale || 0}L</p>
               </div>
-              <div className="bg-white p-8 rounded-3xl shadow-xl">
-                <ShoppingCart className="text-green-600 mb-4" size={48} />
-                <p className="text-slate-500 text-sm">Porosi</p>
+              <div className="bg-surface p-8 rounded-3xl shadow-xl">
+                <ShoppingCart className="text-green-600 dark:text-green-400 mb-4" size={48} />
+                <p className="text-ink-muted text-sm">Porosi</p>
                 <p className="text-4xl font-black">{xhiro.numri_porosive || 0}</p>
               </div>
-              <div className="bg-white p-8 rounded-3xl shadow-xl">
-                <Package className="text-blue-600 mb-4" size={48} />
-                <p className="text-slate-500 text-sm">Produkte</p>
+              <div className="bg-surface p-8 rounded-3xl shadow-xl">
+                <Package className="text-blue-600 dark:text-blue-400 mb-4" size={48} />
+                <p className="text-ink-muted text-sm">Produkte</p>
                 <p className="text-4xl font-black">{xhiro.totali_produkteve || 0}</p>
               </div>
             </div>
           )}
 
           {tab === 'produktet' && (
-            <div className="bg-white rounded-3xl shadow-xl p-8">
+            <div className="bg-surface rounded-3xl shadow-xl p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black"><TrendingUp className="inline text-orange-600" /> Produktet më të Shitura</h2>
-                <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                <h2 className="text-2xl font-black"><TrendingUp className="inline text-orange-600 dark:text-orange-400" /> Produktet më të Shitura</h2>
+                <div className="flex gap-2 bg-muted p-1 rounded-lg">
                   <button onClick={() => setProduktetTab('sot')}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm ${produktetTab === 'sot' ? 'bg-orange-600 text-white' : 'text-slate-600'}`}>
+                    className={`px-4 py-2 rounded-lg font-bold text-sm ${produktetTab === 'sot' ? 'bg-orange-600 text-white' : 'text-ink-muted'}`}>
                     Sot ({produktet.length})
                   </button>
                   <button onClick={() => setProduktetTab('te-gjitha')}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm ${produktetTab === 'te-gjitha' ? 'bg-orange-600 text-white' : 'text-slate-600'}`}>
+                    className={`px-4 py-2 rounded-lg font-bold text-sm ${produktetTab === 'te-gjitha' ? 'bg-orange-600 text-white' : 'text-ink-muted'}`}>
                     Gjithë Kohës ({produktetTeGjitha.length})
                   </button>
                 </div>
@@ -247,20 +247,20 @@ export default function DashboardPage({ perdoruesi }) {
                 </thead>
                 <tbody>
                   {(produktetTab === 'sot' ? produktet : produktetTeGjitha).map((p, idx) => (
-                    <tr key={idx} className="border-b hover:bg-slate-50">
+                    <tr key={idx} className="border-b hover:bg-subtle">
                       <td className="p-4">
                         <div className="font-bold">{p.emri}</div>
-                        <div className="text-sm text-slate-500">Çmimi: {p.cmimi_aktual}L</div>
+                        <div className="text-sm text-ink-muted">Çmimi: {p.cmimi_aktual}L</div>
                       </td>
                       <td className="p-4 text-right">{p.totali_shitur}</td>
-                      <td className="p-4 text-right font-black text-orange-600">{parseFloat(p.xhiro_totale).toFixed(2)}L</td>
+                      <td className="p-4 text-right font-black text-orange-600 dark:text-orange-400">{parseFloat(p.xhiro_totale).toFixed(2)}L</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
               {(produktetTab === 'sot' ? produktet : produktetTeGjitha).length === 0 && (
-                <div className="text-center py-12 text-slate-400">
+                <div className="text-center py-12 text-ink-subtle">
                   <TrendingUp className="mx-auto mb-4" size={64} />
                   <p className="text-lg font-bold">Nuk ka të dhëna</p>
                 </div>
@@ -269,33 +269,33 @@ export default function DashboardPage({ perdoruesi }) {
           )}
 
           {tab === 'inventar' && (
-            <div className="bg-white rounded-3xl shadow-xl p-8">
+            <div className="bg-surface rounded-3xl shadow-xl p-8">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black"><Package className="inline text-orange-600" /> Inventari i Pijeve</h2>
+                <h2 className="text-2xl font-black"><Package className="inline text-orange-600 dark:text-orange-400" /> Inventari i Pijeve</h2>
               </div>
 
               <div className="grid grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-red-50 to-red-100 p-4 rounded-xl border-2 border-red-200">
-                  <p className="text-red-600 text-xs font-bold mb-1">🔴 PA STOK</p>
-                  <p className="text-2xl font-black text-red-700">
+                <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-500/10 dark:to-red-500/20 p-4 rounded-xl border-2 border-red-200 dark:border-red-500/30">
+                  <p className="text-red-600 dark:text-red-400 text-xs font-bold mb-1">🔴 PA STOK</p>
+                  <p className="text-2xl font-black text-red-700 dark:text-red-300">
                     {inventar.filter(i => (i.statusi_stokut || '').includes('PA STOK')).length}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-xl border-2 border-orange-200">
-                  <p className="text-orange-600 text-xs font-bold mb-1">🟠 KRITIK</p>
-                  <p className="text-2xl font-black text-orange-700">
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-500/10 dark:to-orange-500/20 p-4 rounded-xl border-2 border-orange-200 dark:border-orange-500/30">
+                  <p className="text-orange-600 dark:text-orange-400 text-xs font-bold mb-1">🟠 KRITIK</p>
+                  <p className="text-2xl font-black text-orange-700 dark:text-orange-300">
                     {inventar.filter(i => (i.statusi_stokut || '').includes('KRITIK')).length}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-xl border-2 border-yellow-200">
-                  <p className="text-yellow-600 text-xs font-bold mb-1">🟡 I ULËT</p>
-                  <p className="text-2xl font-black text-yellow-700">
+                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-500/10 dark:to-yellow-500/20 p-4 rounded-xl border-2 border-yellow-200 dark:border-yellow-500/30">
+                  <p className="text-yellow-600 dark:text-yellow-400 text-xs font-bold mb-1">🟡 I ULËT</p>
+                  <p className="text-2xl font-black text-yellow-700 dark:text-yellow-300">
                     {inventar.filter(i => (i.statusi_stokut || '').includes('ULËT')).length}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl border-2 border-green-200">
-                  <p className="text-green-600 text-xs font-bold mb-1">🟢 NORMAL</p>
-                  <p className="text-2xl font-black text-green-700">
+                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-500/10 dark:to-green-500/20 p-4 rounded-xl border-2 border-green-200 dark:border-green-500/30">
+                  <p className="text-green-600 dark:text-green-400 text-xs font-bold mb-1">🟢 NORMAL</p>
+                  <p className="text-2xl font-black text-green-700 dark:text-green-300">
                     {inventar.filter(i => (i.statusi_stokut || '').includes('NORMAL')).length}
                   </p>
                 </div>
@@ -303,26 +303,26 @@ export default function DashboardPage({ perdoruesi }) {
 
               <div className="space-y-3">
                 {inventar.map(i => (
-                  <div key={i.inventar_id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl hover:bg-slate-100">
+                  <div key={i.inventar_id} className="flex justify-between items-center p-4 bg-subtle rounded-xl hover:bg-muted">
                     <div className="flex-1">
                       <p className="font-bold text-lg">{i.emri_pijes}</p>
                       <div className="flex gap-4 mt-1">
-                        <p className="text-sm text-slate-600">📦 Stoku: <span className="font-bold">{i.stoku_aktual} {i.njesia}</span></p>
-                        <p className="text-sm text-slate-600">⚠️ Minimal: <span className="font-bold">{i.stoku_minimal} {i.njesia}</span></p>
+                        <p className="text-sm text-ink-muted">📦 Stoku: <span className="font-bold">{i.stoku_aktual} {i.njesia}</span></p>
+                        <p className="text-sm text-ink-muted">⚠️ Minimal: <span className="font-bold">{i.stoku_minimal} {i.njesia}</span></p>
                         {i.cmimi_per_njesi && (
-                          <p className="text-sm text-slate-600">💰 Çmimi: <span className="font-bold">{i.cmimi_per_njesi}L/{i.njesia}</span></p>
+                          <p className="text-sm text-ink-muted">💰 Çmimi: <span className="font-bold">{i.cmimi_per_njesi}L/{i.njesia}</span></p>
                         )}
                         {i.vlera_totale_stoku && (
-                          <p className="text-sm text-slate-600">💵 Vlerë: <span className="font-bold">{parseFloat(i.vlera_totale_stoku).toFixed(2)}L</span></p>
+                          <p className="text-sm text-ink-muted">💵 Vlerë: <span className="font-bold">{parseFloat(i.vlera_totale_stoku).toFixed(2)}L</span></p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`px-4 py-2 rounded-full font-bold text-sm whitespace-nowrap ${
-                        (i.statusi_stokut || '').includes('PA STOK') ? 'bg-red-100 text-red-800 border-2 border-red-300' :
-                        (i.statusi_stokut || '').includes('KRITIK') ? 'bg-orange-100 text-orange-800 border-2 border-orange-300' : 
-                        (i.statusi_stokut || '').includes('ULËT') ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300' : 
-                        'bg-green-100 text-green-800 border-2 border-green-300'
+                        (i.statusi_stokut || '').includes('PA STOK') ? 'bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300 border-2 border-red-300 dark:border-red-500/40' :
+                        (i.statusi_stokut || '').includes('KRITIK') ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300 border-2 border-orange-300 dark:border-orange-500/40' : 
+                        (i.statusi_stokut || '').includes('ULËT') ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-300 border-2 border-yellow-300 dark:border-yellow-500/40' : 
+                        'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300 border-2 border-green-300 dark:border-green-500/40'
                       }`}>
                         {i.statusi_stokut || 'Normal'}
                       </span>
@@ -355,14 +355,14 @@ export default function DashboardPage({ perdoruesi }) {
           )}
 
           {tab === 'porosite' && (
-            <div className="bg-white rounded-3xl shadow-xl p-8">
+            <div className="bg-surface rounded-3xl shadow-xl p-8">
               <h2 className="text-2xl font-black mb-6">Historiku i Porosive</h2>
               <div className="space-y-3">
                 {porosite.map(p => (
-                  <div key={p.porosi_id} className="flex justify-between items-center p-4 bg-slate-50 rounded-xl">
+                  <div key={p.porosi_id} className="flex justify-between items-center p-4 bg-subtle rounded-xl">
                     <div>
                       <p className="font-bold">Porosi #{p.porosi_id} - Tavolina {p.numri_tavolines}</p>
-                      <p className="text-sm text-slate-500">{p.kamarier} • {p.statusi_porosise}</p>
+                      <p className="text-sm text-ink-muted">{p.kamarier} • {p.statusi_porosise}</p>
                     </div>
                     <button onClick={() => shfaqDetajet(p.porosi_id)} className="bg-blue-600 text-white px-4 py-2 rounded-lg">
                       <Eye size={18} />
@@ -376,9 +376,9 @@ export default function DashboardPage({ perdoruesi }) {
           {tab === 'statistika' && (
             <div className="space-y-6">
               {/* Ditët më Fitimprurëse */}
-              <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="bg-surface rounded-3xl shadow-xl p-8">
                 <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
-                  <DollarSign className="text-green-600" /> Top 10 Ditët më Fitimprurëse
+                  <DollarSign className="text-green-600 dark:text-green-400" /> Top 10 Ditët më Fitimprurëse
                 </h3>
                 <div className="space-y-3">
                   {ditaMeFitim.map((d, i) => {
@@ -388,17 +388,17 @@ export default function DashboardPage({ perdoruesi }) {
                       <div key={i} className="flex items-center gap-4">
                         <div className="w-32 text-right">
                           <div className="font-bold">{new Date(d.data).toLocaleDateString('sq-AL')}</div>
-                          <div className="text-xs text-slate-500">{d.dita_javes?.trim()}</div>
+                          <div className="text-xs text-ink-muted">{d.dita_javes?.trim()}</div>
                         </div>
                         <div className="flex-1 relative">
-                          <div className="h-12 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-12 bg-muted rounded-full overflow-hidden">
                             <div className="h-full bg-gradient-to-r from-green-500 to-green-600 flex items-center px-4"
                               style={{ width: `${percentage}%` }}>
                               <span className="text-white font-bold text-sm">{parseFloat(d.xhiro_totale).toFixed(0)}L</span>
                             </div>
                           </div>
                         </div>
-                        <div className="w-24 text-right text-sm text-slate-600">
+                        <div className="w-24 text-right text-sm text-ink-muted">
                           {d.numri_porosive} porosi
                         </div>
                       </div>
@@ -408,9 +408,9 @@ export default function DashboardPage({ perdoruesi }) {
               </div>
 
               {/* Fluksi Sipas Orëve */}
-              <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="bg-surface rounded-3xl shadow-xl p-8">
                 <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
-                  <Clock className="text-blue-600" /> Fluksi i Porosive Sipas Orëve
+                  <Clock className="text-blue-600 dark:text-blue-400" /> Fluksi i Porosive Sipas Orëve
                 </h3>
                 <div className="space-y-2">
                   {fluksiOra.map((f, i) => {
@@ -422,7 +422,7 @@ export default function DashboardPage({ perdoruesi }) {
                       <div key={i} className="flex items-center gap-3">
                         <div className="w-16 text-right font-bold">{f.intervali_kohor}</div>
                         <div className="flex-1 relative h-8">
-                          <div className={`h-full rounded ${isRush ? 'bg-red-100' : isQete ? 'bg-blue-100' : 'bg-slate-100'}`}>
+                          <div className={`h-full rounded ${isRush ? 'bg-red-100 dark:bg-red-500/20' : isQete ? 'bg-blue-100 dark:bg-blue-500/20' : 'bg-muted'}`}>
                             <div className={`h-full rounded flex items-center px-2 ${
                               isRush ? 'bg-red-500' : isQete ? 'bg-blue-500' : 'bg-slate-500'
                             }`} style={{ width: `${percentage}%` }}>
@@ -440,9 +440,9 @@ export default function DashboardPage({ perdoruesi }) {
               </div>
 
               {/* Kamarierë Top */}
-              <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="bg-surface rounded-3xl shadow-xl p-8">
                 <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
-                  <Award className="text-yellow-600" /> Top Kamarierë
+                  <Award className="text-yellow-600 dark:text-yellow-400" /> Top Kamarierë
                 </h3>
                 <div className="space-y-4">
                   {kamarieri.slice(0, 10).map((k, i) => {
@@ -450,18 +450,18 @@ export default function DashboardPage({ perdoruesi }) {
                     const percentage = (parseFloat(k.xhiro_totale) / maxXhiro) * 100;
                     return (
                       <div key={k.punonjes_id} className={`p-4 rounded-xl border-2 ${
-                        i === 0 ? 'bg-yellow-50 border-yellow-400' :
-                        i === 1 ? 'bg-slate-100 border-slate-400' :
-                        i === 2 ? 'bg-orange-50 border-orange-400' : 'bg-white border-slate-200'
+                        i === 0 ? 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-400 dark:border-yellow-500/50' :
+                        i === 1 ? 'bg-muted border-line' :
+                        i === 2 ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-400 dark:border-orange-500/50' : 'bg-surface border-line'
                       }`}>
                         <div className="flex items-center gap-3 mb-2">
                           {i < 3 && <span className="text-3xl">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>}
                           <div className="flex-1">
                             <div className="font-black text-lg">{k.emri} {k.mbiemri}</div>
-                            <div className="text-sm text-slate-600">{k.performance_rating}</div>
+                            <div className="text-sm text-ink-muted">{k.performance_rating}</div>
                           </div>
                         </div>
-                        <div className="relative h-8 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="relative h-8 bg-muted rounded-full overflow-hidden">
                           <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600 flex items-center justify-between px-4"
                             style={{ width: `${percentage}%` }}>
                             <span className="text-white font-bold text-sm">{parseFloat(k.xhiro_totale).toFixed(0)}L</span>
@@ -475,12 +475,12 @@ export default function DashboardPage({ perdoruesi }) {
               </div>
 
               {/* Money Peak */}
-              <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="bg-surface rounded-3xl shadow-xl p-8">
                 <h3 className="text-2xl font-black mb-6">🔥 Money Peak Moments</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b-2 border-orange-200 bg-orange-50">
+                      <tr className="border-b-2 border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10">
                         <th className="text-left p-3">Data & Ora</th>
                         <th className="text-left p-3">Periudha</th>
                         <th className="text-right p-3">Xhiro</th>
@@ -490,13 +490,13 @@ export default function DashboardPage({ perdoruesi }) {
                     </thead>
                     <tbody>
                       {moneyPeak.slice(0, 15).map((m, i) => (
-                        <tr key={i} className="border-b hover:bg-orange-50">
+                        <tr key={i} className="border-b hover:bg-orange-50 dark:hover:bg-orange-500/10">
                           <td className="p-3">
                             <div className="font-bold">{new Date(m.data).toLocaleDateString('sq-AL')}</div>
-                            <div className="text-sm text-slate-500">{m.intervali_kohor}</div>
+                            <div className="text-sm text-ink-muted">{m.intervali_kohor}</div>
                           </td>
                           <td className="p-3 text-2xl">{m.periudha_dites}</td>
-                          <td className="p-3 text-right font-black text-green-600">{parseFloat(m.xhiro_totale).toFixed(2)}L</td>
+                          <td className="p-3 text-right font-black text-green-600 dark:text-green-400">{parseFloat(m.xhiro_totale).toFixed(2)}L</td>
                           <td className="p-3 text-right">{m.numri_porosive}</td>
                           <td className="p-3 font-bold">{m.produkti_me_popullore || 'N/A'}</td>
                         </tr>
@@ -507,24 +507,24 @@ export default function DashboardPage({ perdoruesi }) {
               </div>
 
               {/* Trendet */}
-              <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="bg-surface rounded-3xl shadow-xl p-8">
                 <h3 className="text-2xl font-black mb-6">📊 Trendet e Xhiros (30 Ditë)</h3>
                 <div className="space-y-2">
                   {trendet.slice(0, 15).map((t, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded">
+                    <div key={i} className="flex items-center gap-3 p-2 hover:bg-subtle rounded">
                       <div className="w-28 text-right font-bold text-sm">
                         {new Date(t.data).toLocaleDateString('sq-AL')}
                       </div>
                       <div className="flex-1 flex items-center gap-2">
                         <div className="text-xl">{t.trendi}</div>
-                        <div className="font-black text-green-600">{parseFloat(t.xhiro_ditore).toFixed(0)}L</div>
+                        <div className="font-black text-green-600 dark:text-green-400">{parseFloat(t.xhiro_ditore).toFixed(0)}L</div>
                       </div>
                       <div className={`px-3 py-1 rounded-full text-sm font-bold ${
-                        t.ndryshimi_perqindor > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        t.ndryshimi_perqindor > 0 ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'
                       }`}>
                         {t.ndryshimi_perqindor > 0 ? '+' : ''}{t.ndryshimi_perqindor}%
                       </div>
-                      <div className="w-16 text-right text-xs text-slate-500">
+                      <div className="w-16 text-right text-xs text-ink-muted">
                         #{t.ranking_ditore}
                       </div>
                     </div>
@@ -533,46 +533,46 @@ export default function DashboardPage({ perdoruesi }) {
               </div>
 
               {/* Performance */}
-              <div className="bg-white rounded-3xl shadow-xl p-8">
+              <div className="bg-surface rounded-3xl shadow-xl p-8">
                 <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
-                  <Users className="text-purple-600" /> Performance e Detajuar
+                  <Users className="text-purple-600 dark:text-purple-400" /> Performance e Detajuar
                 </h3>
                 <div className="space-y-4">
                   {performance.map(p => (
-                    <div key={p.punonjes_id} className="p-5 bg-slate-50 rounded-xl border-2 border-slate-200">
+                    <div key={p.punonjes_id} className="p-5 bg-subtle rounded-xl border-2 border-line">
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <div className="font-black text-xl">{p.kamarier}</div>
                           <div className="text-sm">{p.rating_performace}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm text-slate-500">Konsistenca</div>
-                          <div className="text-2xl font-black text-orange-600">{parseFloat(p.konsistenca_perqindore || 0).toFixed(1)}%</div>
+                          <div className="text-sm text-ink-muted">Konsistenca</div>
+                          <div className="text-2xl font-black text-orange-600 dark:text-orange-400">{parseFloat(p.konsistenca_perqindore || 0).toFixed(1)}%</div>
                         </div>
                       </div>
                       <div className="grid grid-cols-5 gap-3 mb-3">
-                        <div className="bg-white p-2 rounded text-center">
-                          <div className="text-xs text-slate-500">Ditë</div>
+                        <div className="bg-surface p-2 rounded text-center">
+                          <div className="text-xs text-ink-muted">Ditë</div>
                           <div className="font-bold">{p.dite_pune}</div>
                         </div>
-                        <div className="bg-white p-2 rounded text-center">
-                          <div className="text-xs text-slate-500">Porosi</div>
+                        <div className="bg-surface p-2 rounded text-center">
+                          <div className="text-xs text-ink-muted">Porosi</div>
                           <div className="font-bold">{p.totali_porosive}</div>
                         </div>
-                        <div className="bg-green-50 p-2 rounded text-center">
-                          <div className="text-xs text-slate-500">Xhiro</div>
-                          <div className="font-bold text-green-600">{parseFloat(p.totali_xhiros || 0).toFixed(0)}L</div>
+                        <div className="bg-green-50 dark:bg-green-500/10 p-2 rounded text-center">
+                          <div className="text-xs text-ink-muted">Xhiro</div>
+                          <div className="font-bold text-green-600 dark:text-green-400">{parseFloat(p.totali_xhiros || 0).toFixed(0)}L</div>
                         </div>
-                        <div className="bg-white p-2 rounded text-center">
-                          <div className="text-xs text-slate-500">7 Ditë</div>
+                        <div className="bg-surface p-2 rounded text-center">
+                          <div className="text-xs text-ink-muted">7 Ditë</div>
                           <div className="font-bold">{parseFloat(p.xhiro_7_dite || 0).toFixed(0)}L</div>
                         </div>
-                        <div className="bg-white p-2 rounded text-center">
-                          <div className="text-xs text-slate-500">30 Ditë</div>
+                        <div className="bg-surface p-2 rounded text-center">
+                          <div className="text-xs text-ink-muted">30 Ditë</div>
                           <div className="font-bold">{parseFloat(p.xhiro_30_dite || 0).toFixed(0)}L</div>
                         </div>
                       </div>
-                      <div className="w-full bg-slate-200 rounded-full h-3">
+                      <div className="w-full bg-muted rounded-full h-3">
                         <div className="bg-gradient-to-r from-orange-500 to-orange-600 h-3 rounded-full"
                           style={{ width: `${Math.min(parseFloat(p.konsistenca_perqindor || 0), 100)}%` }} />
                       </div>
@@ -584,7 +584,7 @@ export default function DashboardPage({ perdoruesi }) {
           )}
         </>
       ) : (
-        <div className="bg-white rounded-3xl shadow-xl p-8">
+        <div className="bg-surface rounded-3xl shadow-xl p-8">
           <h2 className="text-2xl font-black mb-6">Tavolinat e Mia</h2>
           <div className="space-y-3">
             {Array.from(new Set(porosite.map(p => p.tavoline_id))).map(tavoline_id => {
@@ -598,11 +598,11 @@ export default function DashboardPage({ perdoruesi }) {
               const firstOrder = tavolinaOrders[0];
 
               return (
-                <div key={tavoline_id} className="bg-slate-50 rounded-xl p-4">
+                <div key={tavoline_id} className="bg-subtle rounded-xl p-4">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-black text-xl">Tavolina {firstOrder.numri_tavolines}</p>
-                      <p className="text-sm text-slate-600">{tavolinaOrders.length} porosi aktive</p>
+                      <p className="text-sm text-ink-muted">{tavolinaOrders.length} porosi aktive</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => shfaqDetajet(firstOrder.porosi_id)}
@@ -624,15 +624,15 @@ export default function DashboardPage({ perdoruesi }) {
 
       {detajet && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-8 z-50">
-          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full">
+          <div className="bg-surface rounded-3xl p-8 max-w-2xl w-full">
             <div className="flex justify-between mb-6">
               <h2 className="text-2xl font-black">Porosi #{detajet.porosi.porosi_id}</h2>
-              <button onClick={() => setDetajet(null)} className="text-slate-500"><X size={24} /></button>
+              <button onClick={() => setDetajet(null)} className="text-ink-muted"><X size={24} /></button>
             </div>
             <p className="mb-4">Tavolina: {detajet.porosi.numri_tavolines} • {detajet.porosi.kamarier}</p>
             <div className="space-y-2">
               {detajet.artikujt.map(a => (
-                <div key={a.artikull_porosie_id} className="flex justify-between p-3 bg-slate-50 rounded-xl">
+                <div key={a.artikull_porosie_id} className="flex justify-between p-3 bg-subtle rounded-xl">
                   <span>{a.emri} x{a.sasia}</span>
                   <span className="font-bold">{a.totali}L</span>
                 </div>
@@ -647,10 +647,10 @@ export default function DashboardPage({ perdoruesi }) {
 
       {showPaymentForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-8 z-50">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full">
+          <div className="bg-surface rounded-3xl p-8 max-w-md w-full">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black">Pagesa</h2>
-              <button onClick={() => setShowPaymentForm(null)} className="text-slate-500"><X size={24} /></button>
+              <button onClick={() => setShowPaymentForm(null)} className="text-ink-muted"><X size={24} /></button>
             </div>
             
             <div className="space-y-4">
@@ -661,7 +661,7 @@ export default function DashboardPage({ perdoruesi }) {
                   step="0.01"
                   value={paymentData.shuma} 
                   disabled
-                  className="w-full p-3 border-2 border-orange-200 rounded-xl outline-none font-bold text-lg bg-slate-100 cursor-not-allowed"
+                  className="w-full p-3 border-2 border-orange-200 dark:border-orange-500/30 rounded-xl outline-none font-bold text-lg bg-muted cursor-not-allowed"
                 />
               </div>
 
@@ -670,7 +670,7 @@ export default function DashboardPage({ perdoruesi }) {
                 <select 
                   value={paymentData.metoda_pageses} 
                   onChange={(e) => setPaymentData({...paymentData, metoda_pageses: e.target.value})}
-                  className="w-full p-3 border-2 border-orange-200 rounded-xl outline-none font-bold"
+                  className="w-full p-3 border-2 border-orange-200 dark:border-orange-500/30 rounded-xl outline-none font-bold"
                 >
                   <option value="Cash">Cash</option>
                   <option value="Kartë">Kartë Krediti</option>
@@ -678,9 +678,9 @@ export default function DashboardPage({ perdoruesi }) {
                 </select>
               </div>
 
-              <div className="bg-orange-50 p-4 rounded-xl border-2 border-orange-200">
-                <p className="text-sm text-slate-600">Totali për pagese:</p>
-                <p className="text-3xl font-black text-orange-600">{parseFloat(paymentData.shuma).toFixed(2)}L</p>
+              <div className="bg-orange-50 dark:bg-orange-500/10 p-4 rounded-xl border-2 border-orange-200 dark:border-orange-500/30">
+                <p className="text-sm text-ink-muted">Totali për pagese:</p>
+                <p className="text-3xl font-black text-orange-600 dark:text-orange-400">{parseFloat(paymentData.shuma).toFixed(2)}L</p>
               </div>
 
               <div className="flex gap-3">
@@ -692,7 +692,7 @@ export default function DashboardPage({ perdoruesi }) {
                 </button>
                 <button 
                   onClick={() => setShowPaymentForm(null)}
-                  className="px-6 bg-slate-300 p-3 rounded-xl font-black"
+                  className="px-6 bg-muted p-3 rounded-xl font-black"
                 >
                   ANULO
                 </button>

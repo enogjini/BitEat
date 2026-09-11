@@ -1,5 +1,48 @@
+/* ---------------------------------------------------------------------------
+   BitEat design tokens.
+
+   Every surface/text/border colour in the app resolves to one of these
+   variables through the Tailwind config in public/index.html, so switching
+   themes is a variable swap — components do not need `dark:` variants for
+   neutrals. Values are space-separated RGB channels so Tailwind's
+   `<alpha-value>` syntax (e.g. bg-surface/50) keeps working.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --c-canvas: 248 250 252; /* slate-50  — page background */
+  --c-surface: 255 255 255; /* white     — cards, modals */
+  --c-subtle: 248 250 252; /* slate-50  — rows, inputs inside cards */
+  --c-muted: 241 245 249; /* slate-100 — chips, secondary buttons */
+  --c-line: 226 232 240; /* slate-200 — borders, dividers */
+  --c-ink: 15 23 42; /* slate-900 — primary text */
+  --c-ink-muted: 71 85 105; /* slate-600 — secondary text */
+  --c-ink-subtle: 100 116 139; /* slate-500 — captions, empty states */
+}
+
+.dark {
+  --c-canvas: 11 18 32;
+  --c-surface: 21 31 50;
+  --c-subtle: 30 42 65;
+  --c-muted: 39 52 77;
+  --c-line: 43 58 85;
+  --c-ink: 232 237 245;
+  --c-ink-muted: 159 176 200;
+  --c-ink-subtle: 124 140 166;
+}
+
+html {
+  /* Native controls (select, date/time pickers, scrollbars) follow the theme. */
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
+  background-color: rgb(var(--c-canvas));
+  color: rgb(var(--c-ink));
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -10,4 +53,10 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Dropdown option lists are drawn by the OS and do not inherit Tailwind classes. */
+.dark select option {
+  background-color: rgb(var(--c-surface));
+  color: rgb(var(--c-ink));
 }
