@@ -13,6 +13,7 @@ const http = require('node:http');
 const Module = require('node:module');
 
 const { db } = require('./fake-pg');
+const { authHeader } = require('./auth');
 
 const API_PATH = require.resolve('../../api/index.js');
 const FAKE_PG_PATH = require.resolve('./fake-pg.js');
@@ -63,15 +64,23 @@ async function startServer(env = {}) {
   const url = `http://127.0.0.1:${port}`;
 
   /**
+   * Every /api route needs a bearer token, so requests carry an admin one
+   * unless told otherwise: pass `as: 'kamarier'` (or a user object) to act as
+   * someone else, or `as: null` to send no token at all.
+   *
    * @param {string} method
    * @param {string} path
-   * @param {object} [options] `{ body, timeoutMs }`
+   * @param {object} [options] `{ body, as, headers, timeoutMs }`
    */
   async function request(method, path, options = {}) {
-    const { body, timeoutMs = 3000 } = options;
+    const { body, as = 'admin', headers = {}, timeoutMs = 3000 } = options;
     const res = await fetch(url + path, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers: {
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(as === null ? {} : authHeader(as)),
+        ...headers,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });

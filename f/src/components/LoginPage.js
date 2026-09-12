@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Utensils, LogIn } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
-
-const API_BASE = process.env.REACT_APP_API_URL || '';
+import api from '../services/api';
 
 export default function LoginPage({ setPerdoruesi, setFaqja }) {
   const [emri, setEmri] = useState('');
@@ -15,9 +14,7 @@ export default function LoginPage({ setPerdoruesi, setFaqja }) {
     if (lloji === 'kamarier') {
       (async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/punonjesit?lloji=kamarier`);
-          const data = await res.json();
-          setKamarieret(data);
+          setKamarieret(await api.get('/api/punonjesit?lloji=kamarier'));
         } catch (err) {
           console.error('Gabim:', err);
         }
@@ -42,23 +39,13 @@ export default function LoginPage({ setPerdoruesi, setFaqja }) {
         requestBody = { emri_perdoruesit: emri, password, lloji };
       }
 
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        setPerdoruesi(data.user);
-        setFaqja((data.user.lloji === 'admin' || data.user.lloji === 'menaxher') ? 'dashboard' : 'pos');
-      } else {
-        alert(data.message || 'Gabim!');
-      }
+      const user = await api.login(requestBody);
+      setPerdoruesi(user);
+      setFaqja((user.lloji === 'admin' || user.lloji === 'menaxher') ? 'dashboard' : 'pos');
     } catch (err) {
       console.error(err);
-      alert('Gabim në lidhje!');
+      // A 401 carries the server's reason; anything else is a connection problem.
+      alert(err.status ? err.message : 'Gabim në lidhje!');
     }
   };
 

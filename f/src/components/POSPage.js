@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Trash2, Save } from 'lucide-react';
-
-const API_BASE = process.env.REACT_APP_API_URL || '';
+import api from '../services/api';
 
 export default function POSPage({ perdoruesi }) {
   const [tavolinat, setTavolinat] = useState([]);
@@ -16,20 +15,26 @@ export default function POSPage({ perdoruesi }) {
 
   useEffect(() => {
     (async () => {
-      const [t, p, k] = await Promise.all([
-        fetch(`${API_BASE}/api/tavolinat`).then(r => r.json()),
-        fetch(`${API_BASE}/api/punonjesit`).then(r => r.json()),
-        fetch(`${API_BASE}/api/kategorite`).then(r => r.json())
-      ]);
-      setTavolinat(t); setPunonjesit(p); setKategorite(k);
+      try {
+        const [t, p, k] = await Promise.all([
+          api.get('/api/tavolinat'),
+          api.get('/api/punonjesit'),
+          api.get('/api/kategorite')
+        ]);
+        setTavolinat(t); setPunonjesit(p); setKategorite(k);
+      } catch (err) {
+        console.error(err);
+      }
     })();
   }, []);
 
   useEffect(() => {
     (async () => {
-      const url = `${API_BASE}/api/menu${kategoriZgjedhur ? `?kategori_id=${kategoriZgjedhur}` : ''}`;
-      const data = await fetch(url).then(r => r.json());
-      setArtikujtMenu(data);
+      try {
+        setArtikujtMenu(await api.get(`/api/menu${kategoriZgjedhur ? `?kategori_id=${kategoriZgjedhur}` : ''}`));
+      } catch (err) {
+        console.error(err);
+      }
     })();
   }, [kategoriZgjedhur]);
 
@@ -60,28 +65,18 @@ export default function POSPage({ perdoruesi }) {
     }
     
     try {
-      const res = await fetch(`${API_BASE}/api/porosite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          tavoline_id: parseInt(formPorosi.tavoline_id), 
-          punonjes_id: parseInt(formPorosi.punonjes_id), 
-          artikujt: shporta 
-        })
+      await api.post('/api/porosite', {
+        tavoline_id: parseInt(formPorosi.tavoline_id),
+        punonjes_id: parseInt(formPorosi.punonjes_id),
+        artikujt: shporta.map(i => ({ artikull_id: i.artikull_id, sasia: i.sasia }))
       });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        alert('Porosi u ruajt me sukses!');
-        setShporta([]);
-        setFormPorosi({ tavoline_id: '', punonjes_id: perdoruesi?.punonjes_id || '' });
-      } else {
-        alert('Gabim: ' + (data.error || 'Nuk u ruajt'));
-      }
+      alert('Porosi u ruajt me sukses!');
+      setShporta([]);
+      setFormPorosi({ tavoline_id: '', punonjes_id: perdoruesi?.punonjes_id || '' });
     } catch (err) {
       console.error(err);
-      alert('Gabim në lidhje me serverin!');
+      // 409 = a drink is out of stock; 400 = the server rejected the basket.
+      alert(err.status ? 'Gabim: ' + err.message : 'Gabim në lidhje me serverin!');
     }
   };
 

@@ -3,6 +3,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { useServer, db } = require('./helpers/suite');
+const { authHeader } = require('./helpers/auth');
 
 /**
  * The API has one consistent habit worth pinning down: read routes catch their
@@ -63,48 +64,84 @@ describe('unmatched routes and malformed input', () => {
     assert.equal(res.status, 404);
   });
 
-  test('malformed JSON is rejected by the body parser', async () => {
+  test('malformed JSON returns 400 rather than 500', async () => {
+    const res = await fetch(`${api.url}/api/menu`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+      body: '{ not json',
+      signal: AbortSignal.timeout(3000),
+    });
+
+    assert.equal(res.status, 400);
+    assert.deepEqual(await res.json(), { success: false, error: 'JSON i pavlefshëm' });
+    assert.equal(db.calls.length, 0, 'nothing should reach the database');
+  });
+
+  test('malformed JSON is rejected before the token is checked', async () => {
+    // express.json() runs ahead of the auth gate, so a bad body never
+    // reaches it — but it must still be a 400, not a crash.
     const res = await fetch(`${api.url}/api/menu`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{ not json',
       signal: AbortSignal.timeout(3000),
     });
-
-    assert.equal(res.status, 500, 'the error middleware turns a parse failure into a 500');
-    assert.deepEqual(await res.json(), { error: 'Internal Server Error' });
-    assert.equal(db.calls.length, 0, 'nothing should reach the database');
+    assert.equal(res.status, 400);
   });
-
-  test(
-    'malformed JSON returns 400 rather than 500',
-    { todo: 'express.json() throws a 400-shaped SyntaxError, but the error middleware rewrites every error to 500' },
-    async () => {
-      const res = await fetch(`${api.url}/api/menu`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{ not json',
-        signal: AbortSignal.timeout(3000),
-      });
-      assert.equal(res.status, 400);
-    }
-  );
 });
 
 describe('CORS', () => {
-  const api = useServer();
+  describe('default (development)', () => {
+    const api = useServer({ CORS_ORIGIN: undefined, NODE_ENV: undefined });
 
-  test('allows any origin', async () => {
-    const res = await api.request('GET', '/health');
-    assert.equal(res.headers.get('access-control-allow-origin'), '*');
-  });
+    test('allows the CRA dev server', async () => {
+      const res = await api.request('GET', '/health', { headers: { Origin: 'http://localhost:3000' } });
+      assert.equal(res.headers.get('access-control-allow-origin'), 'http://localhost:3000');
+    });
 
-  test(
-    'restricts origins to the deployed front end',
-    { todo: 'cors() runs with no options, so any site can call this API from a browser — combined with the lack of auth, any page can read takings' },
-    async () => {
+    test('does not reflect an arbitrary origin', async () => {
+      const res = await api.request('GET', '/health', { headers: { Origin: 'https://evil.example' } });
+      assert.equal(res.headers.get('access-control-allow-origin'), null);
+    });
+
+    test('never answers with a wildcard', async () => {
       const res = await api.request('GET', '/health');
       assert.notEqual(res.headers.get('access-control-allow-origin'), '*');
-    }
-  );
+    });
+  });
+
+  describe('CORS_ORIGIN', () => {
+    const api = useServer({ CORS_ORIGIN: 'https://biteat.example, https://staging.biteat.example' });
+
+    test('allows each listed origin', async () => {
+      for (const origin of ['https://biteat.example', 'https://staging.biteat.example']) {
+        const res = await api.request('GET', '/health', { headers: { Origin: origin } });
+        assert.equal(res.headers.get('access-control-allow-origin'), origin);
+      }
+    });
+
+    test('refuses an origin that is not listed', async () => {
+      const res = await api.request('GET', '/health', { headers: { Origin: 'http://localhost:3000' } });
+      assert.equal(res.headers.get('access-control-allow-origin'), null);
+    });
+  });
+
+  describe('production with no CORS_ORIGIN', () => {
+    // The front end is same-origin on Vercel, so nothing needs allowing.
+    const api = useServer({ NODE_ENV: 'production', CORS_ORIGIN: undefined, JWT_SECRET: 'prod-secret' });
+
+    test('allows no cross-origin caller', async () => {
+      const res = await api.request('GET', '/health', { as: null, headers: { Origin: 'http://localhost:3000' } });
+      assert.equal(res.headers.get('access-control-allow-origin'), null);
+    });
+  });
+
+  describe("CORS_ORIGIN='*'", () => {
+    const api = useServer({ CORS_ORIGIN: '*' });
+
+    test('opts back into a wildcard explicitly', async () => {
+      const res = await api.request('GET', '/health');
+      assert.equal(res.headers.get('access-control-allow-origin'), '*');
+    });
+  });
 });

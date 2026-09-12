@@ -2,7 +2,7 @@ import React from 'react';
 import { Utensils, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
-export default function Header({ perdoruesi, setPerdoruesi, faqja, setFaqja }) {
+export default function Header({ perdoruesi, onLogout, faqja, setFaqja }) {
   return (
     <div className="bg-surface shadow-lg p-4">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -36,7 +36,7 @@ export default function Header({ perdoruesi, setPerdoruesi, faqja, setFaqja }) {
               <p className="text-sm font-bold">{perdoruesi.emri || perdoruesi.emri_perdoruesit}</p>
               <p className="text-xs text-ink-muted uppercase">{perdoruesi.lloji}</p>
             </div>
-            <button onClick={() => setPerdoruesi(null)} className="bg-red-600 text-white p-2 rounded-lg"><LogOut size={20} /></button>
+            <button onClick={onLogout} title="Dil" className="bg-red-600 text-white p-2 rounded-lg"><LogOut size={20} /></button>
           </div>
         </div>
       </div>

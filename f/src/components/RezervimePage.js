@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Plus, Save } from 'lucide-react';
-
-const API_BASE = process.env.REACT_APP_API_URL || '';
+import api from '../services/api';
 
 export default function RezervimePage({ perdoruesi }) {
   const [rezervime, setRezervime] = useState([]);
@@ -19,10 +18,13 @@ export default function RezervimePage({ perdoruesi }) {
 
   useEffect(() => {
     (async () => {
-      const r = await fetch(`${API_BASE}/api/rezervimet`).then(res => res.json());
-      const t = await fetch(`${API_BASE}/api/tavolinat`).then(res => res.json());
-      setRezervime(r);
-      setTavolinat(t);
+      try {
+        const [r, t] = await Promise.all([api.get('/api/rezervimet'), api.get('/api/tavolinat')]);
+        setRezervime(r);
+        setTavolinat(t);
+      } catch (err) {
+        console.error(err);
+      }
     })();
   }, []);
 
@@ -33,32 +35,23 @@ export default function RezervimePage({ perdoruesi }) {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/rezervimet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+      await api.post('/api/rezervimet', formData);
+      alert('Rezervimi u krijua!');
+      setRezervime(await api.get('/api/rezervimet'));
+      setFormData({
+        emri_klientit: '',
+        numri_personave: '',
+        data_rezervimit: '',
+        ora_rezervimit: '',
+        tavoline_id: '',
+        numri_telefonit: '',
+        shenim: ''
       });
-
-      const data = await res.json();
-      
-      if (data.success) {
-        alert('Rezervimi u krijua!');
-        const r = await fetch(`${API_BASE}/api/rezervimet`).then(res => res.json());
-        setRezervime(r);
-        setFormData({
-          emri_klientit: '',
-          numri_personave: '',
-          data_rezervimit: '',
-          ora_rezervimit: '',
-          tavoline_id: '',
-          numri_telefonit: '',
-          shenim: ''
-        });
-        setShowForm(false);
-      }
+      setShowForm(false);
     } catch (err) {
       console.error(err);
-      alert('Gabim!');
+      // 409 = table already booked for that slot; 400 = capacity or a bad field.
+      alert(err.status ? err.message : 'Gabim!');
     }
   };
 
@@ -150,13 +143,13 @@ export default function RezervimePage({ perdoruesi }) {
                 {r.statusi === 'E konfirmuar' && (
                   <button onClick={async () => {
                     if (window.confirm('Anulo?')) {
-                      await fetch(`${API_BASE}/api/rezervimet/${r.rezervim_id}/statusi`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ statusi: 'E anuluar' })
-                      });
-                      const updated = await fetch(`${API_BASE}/api/rezervimet`).then(res => res.json());
-                      setRezervime(updated);
+                      try {
+                        await api.patch(`/api/rezervimet/${r.rezervim_id}/statusi`, { statusi: 'E anuluar' });
+                        setRezervime(await api.get('/api/rezervimet'));
+                      } catch (err) {
+                        console.error(err);
+                        alert(err.message || 'Gabim!');
+                      }
                     }
                   }} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Anulo</button>
                 )}

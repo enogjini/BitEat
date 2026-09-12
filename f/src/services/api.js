@@ -1,64 +1,127 @@
 /**
- * API Configuration and Service Layer
- * Handles all backend API communication
+ * API client and session store.
+ *
+ * Every call carries the bearer token from `POST /api/login`. The token and
+ * user live in localStorage under `biteat-session` so a reload keeps you
+ * signed in; a 401 from the server clears them and fires `biteat:logout`,
+ * which App listens for to drop back to the login page.
  */
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE = process.env.REACT_APP_API_URL || '';
+const SESSION_KEY = 'biteat-session';
 
-// API endpoints
-export const API_ENDPOINTS = {
-  health: `${API_URL}/health`,
-  users: `${API_URL}/users`,
-  // Add more endpoints as needed
-};
-
-// HTTP client with error handling
-const apiClient = async (endpoint, options = {}) => {
-  const {
-    method = 'GET',
-    body = null,
-    headers = {},
-    ...otherOptions
-  } = options;
-
-  try {
-    const response = await fetch(endpoint, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : null,
-      ...otherOptions,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error || `HTTP Error: ${response.status}`
-      );
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    throw error;
+export class ApiError extends Error {
+  constructor(message, status, body) {
+    super(message);
+    this.status = status;
+    this.body = body;
   }
-};
+}
 
-// API Service Methods
-export const apiService = {
-  // Health check
-  health: async () => {
-    return apiClient(API_ENDPOINTS.health);
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+export function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    if (!session || !session.token || !session.user) return null;
+    if (session.expiresAt && Date.now() >= session.expiresAt) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSession({ token, user, expires_in }) {
+  const session = {
+    token,
+    user,
+    expiresAt: expires_in ? Date.now() + expires_in * 1000 : null,
+  };
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch {
+    /* private mode or full storage — the in-memory state still works */
+  }
+  return session;
+}
+
+export function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+function currentToken() {
+  const session = loadSession();
+  return session ? session.token : null;
+}
+
+// ---------------------------------------------------------------------------
+// HTTP
+// ---------------------------------------------------------------------------
+async function request(method, path, body) {
+  const headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = currentToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  if (res.status === 401 && path !== '/api/login') {
+    clearSession();
+    window.dispatchEvent(new Event('biteat:logout'));
+  }
+
+  if (!res.ok) {
+    const message =
+      (data && (data.error || data.message)) || `Gabim ${res.status}`;
+    throw new ApiError(message, res.status, data);
+  }
+  return data;
+}
+
+const api = {
+  get: (path) => request('GET', path),
+  post: (path, body) => request('POST', path, body),
+  patch: (path, body) => request('PATCH', path, body),
+  delete: (path) => request('DELETE', path),
+
+  /**
+   * Sign in and persist the session. Resolves with the user, or throws an
+   * ApiError whose message is the server's reason.
+   */
+  async login(credentials) {
+    const data = await request('POST', '/api/login', credentials);
+    if (!data || !data.success) {
+      throw new ApiError((data && data.message) || 'Gabim!', 401, data);
+    }
+    saveSession(data);
+    return data.user;
   },
 
-  // Users
-  getUsers: async () => {
-    return apiClient(API_ENDPOINTS.users);
+  logout() {
+    clearSession();
   },
-
-  // Add more API methods as needed
 };
 
-export default apiService;
+export default api;

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, BarChart3, TrendingUp, Package, Eye, X, Table, Clock, DollarSign, Users, Award, Plus, Save } from 'lucide-react';
-
-const API_BASE = process.env.REACT_APP_API_URL || '';
+import api from '../services/api';
 
 export default function DashboardPage({ perdoruesi }) {
   const [tab, setTab] = useState('xhiro');
@@ -26,50 +25,70 @@ export default function DashboardPage({ perdoruesi }) {
   const [trendet, setTrendet] = useState([]);
   const [performance, setPerformance] = useState([]);
 
+  const eshteKamarier = perdoruesi?.lloji === 'kamarier';
+
+  // A waiter sees only their open tables; the server scopes the list to them anyway.
+  const ngarkoPorosite = async () => {
+    const url = eshteKamarier ? '/api/porosite?statusi=E%20Hapur' : '/api/porosite';
+    setPorosite(await api.get(url));
+  };
+
   useEffect(() => {
     (async () => {
-      const x = await fetch(`${API_BASE}/api/statistika/xhiro-ditore`).then(r => r.json());
-      const p = await fetch(`${API_BASE}/api/statistika/produktet-me-te-shitura`).then(r => r.json());
-      const pGjitha = await fetch(`${API_BASE}/api/statistika/produktet-te-gjitha`).then(r => r.json());
-      const i = await fetch(`${API_BASE}/api/inventar`).then(r => r.json());
-      
-      let porositeUrl = `${API_BASE}/api/porosite`;
-      if (perdoruesi?.lloji === 'kamarier') {
-        porositeUrl += `?punonjes_id=${perdoruesi.punonjes_id}&statusi=E Hapur`;
+      try {
+        await ngarkoPorosite();
+        // Takings, products and stock are staff-only endpoints.
+        if (!eshteKamarier) {
+          const [x, p, pGjitha, i] = await Promise.all([
+            api.get('/api/statistika/xhiro-ditore'),
+            api.get('/api/statistika/produktet-me-te-shitura'),
+            api.get('/api/statistika/produktet-te-gjitha'),
+            api.get('/api/inventar'),
+          ]);
+          setXhiro(x);
+          setProduktet(p);
+          setProduktetTeGjitha(pGjitha);
+          setInventar(i);
+        }
+      } catch (err) {
+        console.error(err);
       }
-      const po = await fetch(porositeUrl).then(r => r.json());
-      
-      setXhiro(x); 
-      setProduktet(p); 
-      setProduktetTeGjitha(pGjitha);
-      setInventar(i); 
-      setPorosite(po);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perdoruesi?.punonjes_id, perdoruesi?.lloji]);
   
   useEffect(() => {
     if (tab === 'statistika') {
       (async () => {
-        const df = await fetch(`${API_BASE}/api/statistika/dita-me-fitim`).then(r => r.json());
-        const fo = await fetch(`${API_BASE}/api/statistika/fluksi-porosive-ora`).then(r => r.json());
-        const km = await fetch(`${API_BASE}/api/statistika/kamarieri-me-i-mire`).then(r => r.json());
-        const mp = await fetch(`${API_BASE}/api/statistika/money-peak`).then(r => r.json());
-        const tr = await fetch(`${API_BASE}/api/statistika/xhiro-trendet`).then(r => r.json());
-        const pf = await fetch(`${API_BASE}/api/statistika/performance-kamarieret`).then(r => r.json());
-        
-        setDitaMeFitim(df);
-        setFluksiOra(fo);
-        setKamarieri(km);
-        setMoneyPeak(mp);
-        setTrendet(tr);
-        setPerformance(pf);
+        try {
+          const [df, fo, km, mp, tr, pf] = await Promise.all([
+            api.get('/api/statistika/dita-me-fitim'),
+            api.get('/api/statistika/fluksi-porosive-ora'),
+            api.get('/api/statistika/kamarieri-me-i-mire'),
+            api.get('/api/statistika/money-peak'),
+            api.get('/api/statistika/xhiro-trendet'),
+            api.get('/api/statistika/performance-kamarieret'),
+          ]);
+          setDitaMeFitim(df);
+          setFluksiOra(fo);
+          setKamarieri(km);
+          setMoneyPeak(mp);
+          setTrendet(tr);
+          setPerformance(pf);
+        } catch (err) {
+          console.error(err);
+        }
       })();
     }
   }, [tab]);
 
   const shfaqDetajet = async (id) => {
-    const d = await fetch(`${API_BASE}/api/porosite/${id}`).then(r => r.json());
-    setDetajet(d);
+    try {
+      setDetajet(await api.get(`/api/porosite/${id}`));
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Gabim!');
+    }
   };
 
   const handleCloseOrder = async (tavolineId) => {
@@ -85,12 +104,11 @@ export default function DashboardPage({ perdoruesi }) {
         return;
       }
 
+      // Shuma shfaqet për konfirmim; serveri e rillogarit dhe e krahason kur paguhet.
       let totalAmount = 0;
-      // Merr detajet për secilin porosi dhe llogarit totalin
       for (const order of allOrders) {
-        const details = await fetch(`${API_BASE}/api/porosite/${order.porosi_id}`).then(r => r.json());
-        const orderTotal = details.artikujt.reduce((s, a) => s + parseFloat(a.totali), 0);
-        totalAmount += orderTotal;
+        const details = await api.get(`/api/porosite/${order.porosi_id}`);
+        totalAmount += details.artikujt.reduce((s, a) => s + parseFloat(a.totali), 0);
       }
 
       setShowPaymentForm({
@@ -111,78 +129,30 @@ export default function DashboardPage({ perdoruesi }) {
     }
 
     try {
-      const porositeIds = showPaymentForm.porosite;
-      let pagese_id = null;
-      
-      // HAPI 1: Regjistro pagesa në tabelën pagesat
-      console.log('📝 Regjistro pagesa...', { porosi_id: porositeIds[0], shuma: paymentData.shuma });
-      const paymentRes = await fetch(`${API_BASE}/api/pagesat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          porosi_id: porositeIds[0],
-          shuma: parseFloat(paymentData.shuma),
-          metoda_pageses: paymentData.metoda_pageses,
-          ora_pageses: new Date().toISOString()
-        })
+      // One call: the server totals the orders, records the payment and closes
+      // them in a single transaction, so a failure leaves nothing half-done.
+      const result = await api.post('/api/pagesat', {
+        porosite: showPaymentForm.porosite,
+        shuma: parseFloat(paymentData.shuma),
+        metoda_pageses: paymentData.metoda_pageses,
       });
 
-      if (!paymentRes.ok) {
-        throw new Error(`Gabim në regjistrimin e pageses: ${paymentRes.status}`);
-      }
+      await ngarkoPorosite();
 
-      const paymentDataRes = await paymentRes.json();
-      
-      if (!paymentDataRes.success) {
-        throw new Error('Pagesa nuk u ruajt në databazë');
-      }
-      
-      pagese_id = paymentDataRes.pagese_id;
-      console.log('✅ Pagesa u ruajt:', pagese_id);
-
-      // HAPI 2: Ndrysho statusin e të gjithë porosive në 'E Mbyllur'
-      console.log('📝 Përditëso statusin e porosive...', porositeIds);
-      
-      for (const porosiId of porositeIds) {
-        const statusRes = await fetch(`${API_BASE}/api/porosite/${porosiId}/statusi`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ statusi_porosise: 'E Mbyllur' })
-        });
-
-        if (!statusRes.ok) {
-          throw new Error(`Gabim në përditësimin e porosisë ${porosiId}: ${statusRes.status}`);
-        }
-        
-        const statusData = await statusRes.json();
-        if (!statusData.success) {
-          throw new Error(`Porosi ${porosiId} nuk u përditësua`);
-        }
-        
-        console.log(`✅ Porosi ${porosiId} u mbyll`);
-      }
-
-      // HAPI 3: Rifresko listen e porosive
-      console.log('🔄 Rifresko listen e porosive...');
-      let porositeUrl = `${API_BASE}/api/porosite`;
-      if (perdoruesi?.lloji === 'kamarier') {
-        porositeUrl += `?punonjes_id=${perdoruesi.punonjes_id}&statusi=E Hapur`;
-      }
-      const po = await fetch(porositeUrl).then(r => r.json());
-      setPorosite(po);
-
-      // HAPI 4: Cleanup UI
       setShowPaymentForm(null);
       setPaymentData({ shuma: '', metoda_pageses: 'Cash' });
       setDetajet(null);
 
-      // ✅ SUKSES
-      alert(`✅ SUKSES!\n\nPagesa: ${parseFloat(paymentData.shuma).toFixed(2)}L\nMetoda: ${paymentData.metoda_pageses}\nID Pagese: ${pagese_id}\n\nTavolina u mbyll!`);
-      console.log('✅ Transakcion i plotë i suksesshëm');
-      
+      alert(`✅ SUKSES!\n\nPagesa: ${Number(result.totali).toFixed(2)}L\nMetoda: ${paymentData.metoda_pageses}\nID Pagese: ${result.pagese_id}\n\nTavolina u mbyll!`);
     } catch (err) {
-      console.error('❌ Gabim në transakcion:', err);
-      alert(`❌ Gabim: ${err.message}\n\nProvoj përsëri më vonë.`);
+      console.error('❌ Gabim në pagesë:', err);
+      // A 400 with `totali` means the bill changed since it was shown.
+      if (err.body && err.body.totali !== undefined) {
+        setPaymentData(d => ({ ...d, shuma: err.body.totali }));
+        alert(`❌ ${err.message}\n\nTotali i saktë është ${Number(err.body.totali).toFixed(2)}L — kontrollo dhe konfirmo përsëri.`);
+      } else {
+        alert(`❌ Gabim: ${err.message}\n\nProvoj përsëri më vonë.`);
+      }
     }
   };
 
@@ -330,18 +300,12 @@ export default function DashboardPage({ perdoruesi }) {
                         const sasia = prompt(`Sa ${i.njesia} dëshironi të shtoni?`);
                         if (sasia && parseFloat(sasia) > 0) {
                           try {
-                            const res = await fetch(`${API_BASE}/api/inventar/pije/${i.inventar_id}`, {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ sasia: parseFloat(sasia) })
-                            });
-                            if (res.ok) {
-                              const updatedInventar = await fetch(`${API_BASE}/api/inventar`).then(r => r.json());
-                              setInventar(updatedInventar);
-                              alert(`U shtuan ${sasia} ${i.njesia}!`);
-                            }
+                            await api.patch(`/api/inventar/pije/${i.inventar_id}`, { sasia: parseFloat(sasia) });
+                            setInventar(await api.get('/api/inventar'));
+                            alert(`U shtuan ${sasia} ${i.njesia}!`);
                           } catch (err) {
                             console.error(err);
+                            alert(err.message || 'Gabim!');
                           }
                         }
                       }} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm">
