@@ -2,12 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Trash2, Save } from 'lucide-react';
 import api from '../services/api';
 
-export default function POSPage({ perdoruesi }) {
+/**
+ * @param {object}   [tavolinaFillestare] table to preselect (when opened from the floor view)
+ * @param {Function} [pasRuajtjes]        called after a successful save, e.g. to return to the floor view
+ */
+export default function POSPage({ perdoruesi, tavolinaFillestare, pasRuajtjes }) {
   const [tavolinat, setTavolinat] = useState([]);
   const [punonjesit, setPunonjesit] = useState([]);
   const [kategorite, setKategorite] = useState([]);
   const [artikujtMenu, setArtikujtMenu] = useState([]);
-  const [formPorosi, setFormPorosi] = useState({ tavoline_id: '', punonjes_id: perdoruesi?.punonjes_id || '' });
+  const [formPorosi, setFormPorosi] = useState({
+    tavoline_id: tavolinaFillestare ? String(tavolinaFillestare.tavoline_id) : '',
+    punonjes_id: perdoruesi?.punonjes_id || '',
+  });
   const [kategoriZgjedhur, setKategoriZgjedhur] = useState('');
   const [artikullZgjedhur, setArtikullZgjedhur] = useState('');
   const [sasia, setSasia] = useState(1);
@@ -73,6 +80,7 @@ export default function POSPage({ perdoruesi }) {
       alert('Porosi u ruajt me sukses!');
       setShporta([]);
       setFormPorosi({ tavoline_id: '', punonjes_id: perdoruesi?.punonjes_id || '' });
+      if (pasRuajtjes) pasRuajtjes();
     } catch (err) {
       console.error(err);
       // 409 = a drink is out of stock; 400 = the server rejected the basket.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, BarChart3, TrendingUp, Package, Eye, X, Table, Clock, DollarSign, Users, Award, Plus, Save } from 'lucide-react';
+import { ShoppingCart, BarChart3, TrendingUp, Package, Eye, X, Clock, DollarSign, Users, Award, Plus } from 'lucide-react';
 import api from '../services/api';
 
 export default function DashboardPage({ perdoruesi }) {
@@ -11,11 +11,6 @@ export default function DashboardPage({ perdoruesi }) {
   const [porosite, setPorosite] = useState([]);
   const [detajet, setDetajet] = useState(null);
   const [produktetTab, setProduktetTab] = useState('sot');
-  const [showPaymentForm, setShowPaymentForm] = useState(null);
-  const [paymentData, setPaymentData] = useState({
-    shuma: '',
-    metoda_pageses: 'Cash'
-  });
   
   // Statistika state
   const [ditaMeFitim, setDitaMeFitim] = useState([]);
@@ -25,38 +20,28 @@ export default function DashboardPage({ perdoruesi }) {
   const [trendet, setTrendet] = useState([]);
   const [performance, setPerformance] = useState([]);
 
-  const eshteKamarier = perdoruesi?.lloji === 'kamarier';
-
-  // A waiter sees only their open tables; the server scopes the list to them anyway.
-  const ngarkoPorosite = async () => {
-    const url = eshteKamarier ? '/api/porosite?statusi=E%20Hapur' : '/api/porosite';
-    setPorosite(await api.get(url));
-  };
-
+  // The dashboard is staff-only; waiters work from the floor view.
   useEffect(() => {
     (async () => {
       try {
-        await ngarkoPorosite();
-        // Takings, products and stock are staff-only endpoints.
-        if (!eshteKamarier) {
-          const [x, p, pGjitha, i] = await Promise.all([
-            api.get('/api/statistika/xhiro-ditore'),
-            api.get('/api/statistika/produktet-me-te-shitura'),
-            api.get('/api/statistika/produktet-te-gjitha'),
-            api.get('/api/inventar'),
-          ]);
-          setXhiro(x);
-          setProduktet(p);
-          setProduktetTeGjitha(pGjitha);
-          setInventar(i);
-        }
+        const [po, x, p, pGjitha, i] = await Promise.all([
+          api.get('/api/porosite'),
+          api.get('/api/statistika/xhiro-ditore'),
+          api.get('/api/statistika/produktet-me-te-shitura'),
+          api.get('/api/statistika/produktet-te-gjitha'),
+          api.get('/api/inventar'),
+        ]);
+        setPorosite(po);
+        setXhiro(x);
+        setProduktet(p);
+        setProduktetTeGjitha(pGjitha);
+        setInventar(i);
       } catch (err) {
         console.error(err);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perdoruesi?.punonjes_id, perdoruesi?.lloji]);
-  
+  }, []);
+
   useEffect(() => {
     if (tab === 'statistika') {
       (async () => {
@@ -91,86 +76,18 @@ export default function DashboardPage({ perdoruesi }) {
     }
   };
 
-  const handleCloseOrder = async (tavolineId) => {
-    try {
-      // Merr të gjitha porosite e hapura në këtë tavolinë
-      const allOrders = porosite.filter(p => 
-        parseInt(p.tavoline_id) === parseInt(tavolineId) && 
-        p.statusi_porosise === 'E Hapur'
-      );
-      
-      if (allOrders.length === 0) {
-        alert('Nuk ka porosi për këtë tavolinë!');
-        return;
-      }
-
-      // Shuma shfaqet për konfirmim; serveri e rillogarit dhe e krahason kur paguhet.
-      let totalAmount = 0;
-      for (const order of allOrders) {
-        const details = await api.get(`/api/porosite/${order.porosi_id}`);
-        totalAmount += details.artikujt.reduce((s, a) => s + parseFloat(a.totali), 0);
-      }
-
-      setShowPaymentForm({
-        tavolineId: tavolineId,
-        porosite: allOrders.map(p => p.porosi_id)
-      });
-      setPaymentData({ shuma: totalAmount, metoda_pageses: 'Cash' });
-    } catch (err) {
-      console.error(err);
-      alert('Gabim në marrjen e detajeve!');
-    }
-  };
-
-  const handleSavePayment = async () => {
-    if (!paymentData.shuma || !paymentData.metoda_pageses) {
-      alert('Plotëso fushat e pageses!');
-      return;
-    }
-
-    try {
-      // One call: the server totals the orders, records the payment and closes
-      // them in a single transaction, so a failure leaves nothing half-done.
-      const result = await api.post('/api/pagesat', {
-        porosite: showPaymentForm.porosite,
-        shuma: parseFloat(paymentData.shuma),
-        metoda_pageses: paymentData.metoda_pageses,
-      });
-
-      await ngarkoPorosite();
-
-      setShowPaymentForm(null);
-      setPaymentData({ shuma: '', metoda_pageses: 'Cash' });
-      setDetajet(null);
-
-      alert(`✅ SUKSES!\n\nPagesa: ${Number(result.totali).toFixed(2)}L\nMetoda: ${paymentData.metoda_pageses}\nID Pagese: ${result.pagese_id}\n\nTavolina u mbyll!`);
-    } catch (err) {
-      console.error('❌ Gabim në pagesë:', err);
-      // A 400 with `totali` means the bill changed since it was shown.
-      if (err.body && err.body.totali !== undefined) {
-        setPaymentData(d => ({ ...d, shuma: err.body.totali }));
-        alert(`❌ ${err.message}\n\nTotali i saktë është ${Number(err.body.totali).toFixed(2)}L — kontrollo dhe konfirmo përsëri.`);
-      } else {
-        alert(`❌ Gabim: ${err.message}\n\nProvoj përsëri më vonë.`);
-      }
-    }
-  };
-
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      {(perdoruesi?.lloji === 'admin' || perdoruesi?.lloji === 'menaxher') && (
-        <div className="flex gap-4 mb-6 flex-wrap">
-          {['xhiro', 'produktet', 'inventar', 'porosite', 'statistika'].map(t => (
-            <button key={t} onClick={() => setTab(t)} 
-              className={`px-6 py-3 rounded-xl font-black ${tab === t ? 'bg-orange-600 text-white' : 'bg-surface'}`}>
-              {t.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-4 mb-6 flex-wrap">
+        {['xhiro', 'produktet', 'inventar', 'porosite', 'statistika'].map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-6 py-3 rounded-xl font-black ${tab === t ? 'bg-orange-600 text-white' : 'bg-surface'}`}>
+            {t.toUpperCase()}
+          </button>
+        ))}
+      </div>
 
-      {(perdoruesi?.lloji === 'admin' || perdoruesi?.lloji === 'menaxher') ? (
-        <>
+      <>
           {tab === 'xhiro' && xhiro && (
             <div className="grid grid-cols-3 gap-6">
               <div className="bg-surface p-8 rounded-3xl shadow-xl">
@@ -547,44 +464,6 @@ export default function DashboardPage({ perdoruesi }) {
             </div>
           )}
         </>
-      ) : (
-        <div className="bg-surface rounded-3xl shadow-xl p-8">
-          <h2 className="text-2xl font-black mb-6">Tavolinat e Mia</h2>
-          <div className="space-y-3">
-            {Array.from(new Set(porosite.map(p => p.tavoline_id))).map(tavoline_id => {
-              const tavolinaOrders = porosite.filter(p => 
-                p.tavoline_id === tavoline_id && 
-                p.punonjes_id === perdoruesi?.punonjes_id && 
-                p.statusi_porosise === 'E Hapur'
-              );
-              
-              if (tavolinaOrders.length === 0) return null;
-              const firstOrder = tavolinaOrders[0];
-
-              return (
-                <div key={tavoline_id} className="bg-subtle rounded-xl p-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-black text-xl">Tavolina {firstOrder.numri_tavolines}</p>
-                      <p className="text-sm text-ink-muted">{tavolinaOrders.length} porosi aktive</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => shfaqDetajet(firstOrder.porosi_id)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">
-                        <Eye size={18} />
-                      </button>
-                      <button onClick={() => handleCloseOrder(parseInt(tavoline_id))}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold">
-                        Mbyll
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {detajet && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-8 z-50">
@@ -604,63 +483,6 @@ export default function DashboardPage({ perdoruesi }) {
             </div>
             <div className="mt-6 pt-6 border-t text-2xl font-black text-right">
               TOTAL: {detajet.artikujt.reduce((s, a) => s + parseFloat(a.totali), 0)}L
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPaymentForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-8 z-50">
-          <div className="bg-surface rounded-3xl p-8 max-w-md w-full">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black">Pagesa</h2>
-              <button onClick={() => setShowPaymentForm(null)} className="text-ink-muted"><X size={24} /></button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold mb-2">Shuma</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  value={paymentData.shuma} 
-                  disabled
-                  className="w-full p-3 border-2 border-orange-200 dark:border-orange-500/30 rounded-xl outline-none font-bold text-lg bg-muted cursor-not-allowed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold mb-2">Metoda Pagese</label>
-                <select 
-                  value={paymentData.metoda_pageses} 
-                  onChange={(e) => setPaymentData({...paymentData, metoda_pageses: e.target.value})}
-                  className="w-full p-3 border-2 border-orange-200 dark:border-orange-500/30 rounded-xl outline-none font-bold"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Kartë">Kartë Krediti</option>
-                  <option value="Transferim">Transferim Bankar</option>
-                </select>
-              </div>
-
-              <div className="bg-orange-50 dark:bg-orange-500/10 p-4 rounded-xl border-2 border-orange-200 dark:border-orange-500/30">
-                <p className="text-sm text-ink-muted">Totali për pagese:</p>
-                <p className="text-3xl font-black text-orange-600 dark:text-orange-400">{parseFloat(paymentData.shuma).toFixed(2)}L</p>
-              </div>
-
-              <div className="flex gap-3">
-                <button 
-                  onClick={handleSavePayment}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl font-black"
-                >
-                  <Save size={20} className="inline" /> KONFIRMO
-                </button>
-                <button 
-                  onClick={() => setShowPaymentForm(null)}
-                  className="px-6 bg-muted p-3 rounded-xl font-black"
-                >
-                  ANULO
-                </button>
-              </div>
             </div>
           </div>
         </div>

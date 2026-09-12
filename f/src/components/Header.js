@@ -2,6 +2,13 @@ import React from 'react';
 import { Utensils, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
+// Navigation per role: waiters live on the floor, staff on the dashboard.
+const faqet = (lloji) => (
+  lloji === 'kamarier'
+    ? [['pos', 'Krijo'], ['tavolinat', 'Salla'], ['rezervime', 'Rezervime']]
+    : [['dashboard', 'Dashboard'], ['tavolinat', 'Salla'], ['rezervime', 'Rezervime']]
+);
+
 export default function Header({ perdoruesi, onLogout, faqja, setFaqja }) {
   return (
     <div className="bg-surface shadow-lg p-4">
@@ -11,25 +18,12 @@ export default function Header({ perdoruesi, onLogout, faqja, setFaqja }) {
           <h1 className="text-2xl font-black">BitEat</h1>
         </div>
         <div className="flex items-center gap-4">
-          {perdoruesi.lloji === 'admin' && (
-            <>
-              <button onClick={() => setFaqja('dashboard')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'dashboard' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Dashboard</button>
-              <button onClick={() => setFaqja('rezervime')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'rezervime' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Rezervime</button>
-            </>
-          )}
-          {perdoruesi.lloji === 'menaxher' && (
-            <>
-              <button onClick={() => setFaqja('dashboard')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'dashboard' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Dashboard</button>
-              <button onClick={() => setFaqja('rezervime')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'rezervime' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Rezervime</button>
-            </>
-          )}
-          {perdoruesi.lloji === 'kamarier' && (
-            <>
-              <button onClick={() => setFaqja('pos')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'pos' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Krijo</button>
-              <button onClick={() => setFaqja('dashboard')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'dashboard' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Porosite</button>
-              <button onClick={() => setFaqja('rezervime')} className={`px-6 py-2 rounded-xl font-bold ${faqja === 'rezervime' ? 'bg-orange-600 text-white' : 'bg-muted'}`}>Rezervime</button>
-            </>
-          )}
+          {faqet(perdoruesi.lloji).map(([id, emri]) => (
+            <button key={id} onClick={() => setFaqja(id)}
+              className={`px-6 py-2 rounded-xl font-bold ${faqja === id ? 'bg-orange-600 text-white' : 'bg-muted'}`}>
+              {emri}
+            </button>
+          ))}
           <ThemeToggle />
           <div className="flex items-center gap-3 bg-muted px-4 py-2 rounded-xl">
             <div className="text-right">

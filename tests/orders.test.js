@@ -121,14 +121,21 @@ describe('GET /api/porosite/:id', () => {
     assert.equal(db.calls.length, 0);
   });
 
-  test("a waiter cannot open another waiter's order", async () => {
-    db.when(/FROM porosite p/, { rows: [{ ...ORDER, punonjes_id: 5 }] });
+  test("a waiter can open a colleague's order while it is still open", async () => {
+    // Tables are shared on the floor; a live order is everyone's business.
+    db.when(/FROM porosite p/, { rows: [{ ...ORDER, punonjes_id: 5, statusi_porosise: 'E Hapur' }] });
+    const res = await api.request('GET', '/api/porosite/184', { as: 'kamarier' });
+    assert.equal(res.status, 200);
+  });
+
+  test("a waiter cannot open a colleague's closed order", async () => {
+    db.when(/FROM porosite p/, { rows: [{ ...ORDER, punonjes_id: 5, statusi_porosise: 'E Mbyllur' }] });
     const res = await api.request('GET', '/api/porosite/184', { as: 'kamarier' });
     assert.equal(res.status, 403);
   });
 
-  test('a waiter can open their own order', async () => {
-    db.when(/FROM porosite p/, { rows: [ORDER] });
+  test('a waiter can open their own closed order', async () => {
+    db.when(/FROM porosite p/, { rows: [{ ...ORDER, statusi_porosise: 'E Mbyllur' }] });
     const res = await api.request('GET', '/api/porosite/184', { as: 'kamarier' });
     assert.equal(res.status, 200);
   });

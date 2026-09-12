@@ -4,15 +4,27 @@ import Header from './components/Header';
 import POSPage from './components/POSPage';
 import DashboardPage from './components/DashboardPage';
 import RezervimePage from './components/RezervimePage';
+import TavolinatPage from './components/TavolinatPage';
 import { ThemeProvider } from './theme/ThemeProvider';
 import api, { loadSession } from './services/api';
 
-const homeFor = (user) => (user.lloji === 'kamarier' ? 'pos' : 'dashboard');
+const homeFor = (user) => (user.lloji === 'kamarier' ? 'tavolinat' : 'dashboard');
 
 export default function RestaurantApp() {
   // A stored, unexpired session survives a reload.
   const [perdoruesi, setPerdoruesi] = useState(() => loadSession()?.user ?? null);
   const [faqja, setFaqja] = useState(() => (perdoruesi ? homeFor(perdoruesi) : 'login'));
+  // Set when the POS is opened from the floor view for a specific table.
+  const [tavolinaZgjedhur, setTavolinaZgjedhur] = useState(null);
+
+  const hapPorosiNeTavoline = (tavolina) => {
+    setTavolinaZgjedhur(tavolina);
+    setFaqja('pos');
+  };
+  const kthehuNeSalle = () => {
+    setTavolinaZgjedhur(null);
+    setFaqja('tavolinat');
+  };
 
   const dil = () => {
     api.logout();
@@ -34,8 +46,16 @@ export default function RestaurantApp() {
         ) : (
           <>
             <Header perdoruesi={perdoruesi} onLogout={dil} faqja={faqja} setFaqja={setFaqja} />
-            {faqja === 'pos' && perdoruesi?.lloji !== 'admin' && <POSPage perdoruesi={perdoruesi} />}
-            {faqja === 'dashboard' && <DashboardPage perdoruesi={perdoruesi} />}
+            {faqja === 'pos' && perdoruesi?.lloji !== 'admin' && (
+              <POSPage
+                key={tavolinaZgjedhur?.tavoline_id ?? 'pos'}
+                perdoruesi={perdoruesi}
+                tavolinaFillestare={tavolinaZgjedhur}
+                pasRuajtjes={tavolinaZgjedhur ? kthehuNeSalle : undefined}
+              />
+            )}
+            {faqja === 'tavolinat' && <TavolinatPage perdoruesi={perdoruesi} onHapPorosi={hapPorosiNeTavoline} />}
+            {faqja === 'dashboard' && perdoruesi?.lloji !== 'kamarier' && <DashboardPage perdoruesi={perdoruesi} />}
             {faqja === 'rezervime' && <RezervimePage perdoruesi={perdoruesi} />}
           </>
         )}

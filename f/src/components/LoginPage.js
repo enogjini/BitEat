@@ -41,7 +41,7 @@ export default function LoginPage({ setPerdoruesi, setFaqja }) {
 
       const user = await api.login(requestBody);
       setPerdoruesi(user);
-      setFaqja((user.lloji === 'admin' || user.lloji === 'menaxher') ? 'dashboard' : 'pos');
+      setFaqja(user.lloji === 'kamarier' ? 'tavolinat' : 'dashboard');
     } catch (err) {
       console.error(err);
       // A 401 carries the server's reason; anything else is a connection problem.

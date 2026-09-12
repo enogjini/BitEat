@@ -111,8 +111,8 @@ which keeps the install-free test suite install-free.
 
 | Who | Can |
 |-----|-----|
-| everyone signed in | read the menu, tables, categories; place orders; settle *their own* tables; create and cancel reservations |
-| `kamarier` | only ever sees and pays their own orders — `punonjes_id` in the body or query string is ignored in favour of the token |
+| everyone signed in | read the menu, tables and the floor view; place orders; see and settle any table that is currently open; create and cancel reservations |
+| `kamarier` | orders they place are always attributed to them (`punonjes_id` in the body is ignored), and their order *history* (`GET /api/porosite`, closed orders) is only their own — but a live table is shared: tables are routinely served by several waiters and the bill is taken by whoever the guests ask |
 | `admin`, `menaxher` | additionally: statistics, inventory, `POST /api/menu`, changing or deleting orders, deleting reservations |
 
 A 401 means no/expired token (the web client drops back to the login page); a
@@ -126,6 +126,30 @@ logged in once, the plaintext is gone.
 **Web client.** [`f/src/services/api.js`](f/src/services/api.js) keeps the
 token and user in `localStorage` (`biteat-session`) so a reload stays signed
 in, attaches the header to every call, and fires `biteat:logout` on a 401.
+
+## The floor view
+
+`GET /api/tavolinat/status` is the source for the **Salla** page (every role's
+home for waiters). A table's state is *derived*, never read from a column —
+`tavolinat.gjendja` is a one-character column and `tavolinat.statusi` is set
+by triggers that never fire, so neither can be trusted:
+
+| `statusi` | when |
+|-----------|------|
+| `E zënë` | the table has at least one open order |
+| `E rezervuar` | a confirmed booking for today starts within the next two hours |
+| `E lirë` | otherwise |
+
+One row per table, ordered by `vendndodhja` then `numri_tavolines`, with the
+waiters serving it (`kamarier`, comma-joined), the number of open orders, when
+the first was placed, the running bill (`totali_hapur`), and today's next
+confirmed booking if any. "Today" is the restaurant's wall clock
+(`TZ_RESTORANTI`, default `Europe/Tirane`) — the database runs in UTC.
+
+`GET /api/tavolinat/:id/porosite` returns a table with its open orders, their
+lines and totals; the page uses it for the table panel, and
+`POST /api/pagesat` with `porosite: [ids]` settles the lot. The page polls
+every 15 s and on tab focus.
 
 ## Validation and invariants
 
@@ -159,7 +183,7 @@ npm run test:watch    # re-run on change
 npm run test:coverage # line/branch coverage
 ```
 
-The suite covers every `/api` route and `/health` — 271 tests, ~98% line and
+The suite covers every `/api` route and `/health` — 282 tests, ~98% line and
 ~92% branch coverage across `api/` and `lib/`.
 
 **It installs nothing.** The runner is Node's built-in `node:test` (Node 18.13+),
@@ -188,14 +212,14 @@ placeholders are numbered correctly when filters combine, and that
 
 ### Tests marked `todo`
 
-5 tests are marked `todo`. These are **not unfinished** — each one asserts the
+4 tests are marked `todo`. These are **not unfinished** — each one asserts the
 behaviour the endpoint *should* have and is currently red because of a real
 defect, with the reason in the todo message. They report as TODO rather than
 failures so CI stays green and honest; fixing a defect means deleting its
 `{ todo: ... }` marker and watching the test go green. Run `npm test` and read
 the TODO lines for the current list. What remains is operational: `/health`
-does not ping Postgres, read routes answer an outage with `[]`, the pooler
-certificate is not verified, and table ordering assumes numeric labels.
+does not ping Postgres, read routes answer an outage with `[]`, and the
+pooler certificate is not verified.
 
 ### End-to-end
 

@@ -181,16 +181,17 @@ describe('POST /api/pagesat', () => {
     assert.ok(db.sql.includes('ROLLBACK'));
   });
 
-  test("a waiter cannot settle another waiter's order", async () => {
+  test("a waiter can settle a table served by a colleague", async () => {
+    // The bill is taken by whoever the guests ask; tables are routinely shared.
     openOrder(184, 1000, { punonjes_id: 5 });
+    db.when(/INSERT INTO pagesat/, { rows: [{ pagese_id: 1 }] });
 
     const res = await api.request('POST', '/api/pagesat', {
       as: 'kamarier',
       body: { porosi_id: 184, metoda_pageses: 'Cash' },
     });
 
-    assert.equal(res.status, 403);
-    assert.equal(db.matching(/INSERT INTO pagesat/).length, 0);
+    assert.equal(res.status, 201);
   });
 
   test('a waiter can settle their own table', async () => {

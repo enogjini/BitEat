@@ -353,7 +353,7 @@ describe('role restrictions', () => {
   }
 
   test('a waiter can still read the menu, tables and their orders', async () => {
-    for (const path of ['/api/menu', '/api/tavolinat', '/api/kategorite', '/api/porosite', '/api/rezervimet']) {
+    for (const path of ['/api/menu', '/api/tavolinat', '/api/tavolinat/status', '/api/kategorite', '/api/porosite', '/api/rezervimet']) {
       db.reset();
       const res = await api.request('GET', path, { as: 'kamarier' });
       assert.equal(res.status, 200, path);

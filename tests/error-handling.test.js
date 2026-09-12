@@ -17,6 +17,7 @@ describe('failure paths on read routes', () => {
 
   const readRoutes = [
     ['GET', '/api/tavolinat/status', /FROM tavolinat t/, []],
+    ['GET', '/api/tavolinat/3/porosite', /FROM tavolinat WHERE tavoline_id/, { error: 'Gabim' }],
     ['GET', '/api/punonjesit', /FROM punonjesit/, []],
     ['GET', '/api/pagesat/42', /FROM pagesat WHERE pagese_id/, { error: 'Gabim' }],
   ];

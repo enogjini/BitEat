@@ -48,8 +48,11 @@ const STATUSET_POROSISE = ['E Hapur', 'E Mbyllur', 'Anuluar'];
 const GJENDJET_TAVOLINES = ['E lirë', 'E zënë', 'E rezervuar'];
 const METODAT_PAGESES = ['Cash', 'Kartë', 'Transferim'];
 const STATUSET_REZERVIMIT = ['E konfirmuar', 'E anuluar', 'E perfunduar', 'Ne pritje'];
-// Two bookings on the same table closer together than this are a conflict.
+// Two bookings on the same table closer together than this are a conflict,
+// and a table counts as reserved this long before its booking.
 const KOHEZGJATJA_REZERVIMIT_SEK = 2 * 60 * 60;
+// Reservation times are the restaurant's wall clock; the database runs in UTC.
+const TZ_RESTORANTI = process.env.TZ_RESTORANTI || 'Europe/Tirane';
 
 // ----------------------------------------------------------------------------
 // Response helpers
@@ -253,23 +256,117 @@ app.get('/api/tavolinat', async (req, res) => {
   }
 });
 
+/**
+ * The floor view. A table's state is derived, not stored: it is occupied
+ * while it has open orders, reserved when a confirmed booking for today falls
+ * within the reservation window, and free otherwise. (`tavolinat.gjendja` is
+ * a one-character column and `tavolinat.statusi` is written by triggers that
+ * never fire — neither can be trusted.) One row per table, whoever is serving it.
+ */
 app.get('/api/tavolinat/status', async (req, res) => {
   try {
     const result = await pool.query(`
+      WITH tani AS (
+        SELECT (NOW() AT TIME ZONE $1)::date AS data, (NOW() AT TIME ZONE $1)::time AS ora
+      ),
+      hapura AS (
+        SELECT p.tavoline_id,
+               COUNT(*)::int AS numri_porosive,
+               -- ora_porosise is a naive timestamp written by NOW(); re-attach the
+               -- zone it was written in so the client gets an unambiguous instant.
+               MIN(p.ora_porosise) AT TIME ZONE current_setting('TimeZone') AS ora_porosise,
+               string_agg(DISTINCT pu.emri, ', ') AS kamarier,
+               COALESCE(SUM(l.totali), 0) AS totali_hapur
+        FROM porosite p
+        JOIN punonjesit pu ON pu.punonjes_id = p.punonjes_id
+        LEFT JOIN LATERAL (
+          SELECT SUM(ap.sasia * am.cmimi) AS totali
+          FROM artikujt_porosise ap
+          JOIN artikujt_menu am ON am.artikull_id = ap.artikull_id
+          WHERE ap.porosi_id = p.porosi_id
+        ) l ON true
+        WHERE p.statusi_porosise = 'E Hapur'
+        GROUP BY p.tavoline_id
+      ),
+      rez AS (
+        SELECT DISTINCT ON (r.tavoline_id)
+               r.tavoline_id, r.rezervim_id, r.emri_klientit, r.numri_personave, r.ora_rezervimit
+        FROM rezervimet r, tani
+        WHERE r.statusi = 'E konfirmuar'
+          AND r.data_rezervimit = tani.data
+          AND r.ora_rezervimit >= tani.ora - make_interval(secs => $2)
+        ORDER BY r.tavoline_id, r.ora_rezervimit
+      )
       SELECT t.tavoline_id, t.numri_tavolines, t.vendndodhja, t.kapaciteti,
-             t.gjendja AS statusi, pu.emri AS kamarier,
-             COUNT(DISTINCT p.porosi_id) AS numri_porosive,
-             MIN(p.ora_porosise) AS ora_porosise
+             CASE
+               WHEN h.numri_porosive > 0 THEN 'E zënë'
+               WHEN rez.rezervim_id IS NOT NULL
+                    AND rez.ora_rezervimit <= tani.ora + make_interval(secs => $2) THEN 'E rezervuar'
+               ELSE 'E lirë'
+             END AS statusi,
+             h.kamarier,
+             COALESCE(h.numri_porosive, 0) AS numri_porosive,
+             h.ora_porosise,
+             COALESCE(h.totali_hapur, 0) AS totali_hapur,
+             rez.rezervim_id,
+             rez.emri_klientit AS rezervim_klienti,
+             rez.numri_personave AS rezervim_persona,
+             rez.ora_rezervimit AS rezervim_ora
       FROM tavolinat t
-      LEFT JOIN porosite p ON t.tavoline_id = p.tavoline_id AND p.statusi_porosise = 'E Hapur'
-      LEFT JOIN punonjesit pu ON p.punonjes_id = pu.punonjes_id
-      GROUP BY t.tavoline_id, t.numri_tavolines, t.vendndodhja, t.kapaciteti, t.gjendja, pu.emri
-      ORDER BY CAST(t.numri_tavolines AS INTEGER)
-    `);
+      CROSS JOIN tani
+      LEFT JOIN hapura h ON h.tavoline_id = t.tavoline_id
+      LEFT JOIN rez ON rez.tavoline_id = t.tavoline_id
+      ORDER BY t.vendndodhja, t.numri_tavolines
+    `, [TZ_RESTORANTI, KOHEZGJATJA_REZERVIMIT_SEK]);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json([]);
+  }
+});
+
+/** A table with its open orders and their lines — what the floor view shows when a table is tapped. */
+app.get('/api/tavolinat/:id/porosite', async (req, res) => {
+  const id = v.toPosInt(req.params.id);
+  if (Number.isNaN(id)) return bad(res, 'id i pavlefshëm');
+  try {
+    const table = await pool.query(
+      'SELECT tavoline_id, numri_tavolines, vendndodhja, kapaciteti FROM tavolinat WHERE tavoline_id = $1',
+      [id]
+    );
+    if (table.rows.length === 0) return bad(res, 'Tavolina nuk u gjet', 404);
+
+    const orders = await pool.query(`
+      SELECT p.porosi_id, p.punonjes_id, pu.emri || ' ' || pu.mbiemri AS kamarier,
+             p.ora_porosise AT TIME ZONE current_setting('TimeZone') AS ora_porosise
+      FROM porosite p
+      JOIN punonjesit pu ON pu.punonjes_id = p.punonjes_id
+      WHERE p.tavoline_id = $1 AND p.statusi_porosise = 'E Hapur'
+      ORDER BY p.ora_porosise, p.porosi_id
+    `, [id]);
+
+    const ids = orders.rows.map((o) => o.porosi_id);
+    const lines = ids.length === 0 ? { rows: [] } : await pool.query(`
+      SELECT ap.porosi_id, ap.artikull_porosie_id, ap.artikull_id, am.emri, ap.sasia, am.cmimi,
+             (ap.sasia * am.cmimi) AS totali
+      FROM artikujt_porosise ap
+      JOIN artikujt_menu am ON ap.artikull_id = am.artikull_id
+      WHERE ap.porosi_id = ANY($1)
+      ORDER BY ap.porosi_id, ap.artikull_porosie_id
+    `, [ids]);
+
+    const porosite = orders.rows.map((o) => {
+      const artikujt = lines.rows.filter((l) => l.porosi_id === o.porosi_id);
+      return { ...o, artikujt, totali: artikujt.reduce((s, l) => s + Number(l.totali), 0) };
+    });
+    res.json({
+      tavolina: table.rows[0],
+      porosite,
+      totali: porosite.reduce((s, o) => s + o.totali, 0),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gabim' });
   }
 });
 
@@ -401,7 +498,9 @@ app.get('/api/porosite/:id', async (req, res) => {
     `, [id]);
 
     if (porosi.rows.length === 0) return bad(res, 'Porosia nuk u gjet', 404);
-    if (req.user.lloji === 'kamarier' && porosi.rows[0].punonjes_id !== req.user.punonjes_id) {
+    // A live table is served by whoever is on the floor; only closed orders are personal.
+    const order = porosi.rows[0];
+    if (req.user.lloji === 'kamarier' && order.statusi_porosise !== 'E Hapur' && order.punonjes_id !== req.user.punonjes_id) {
       return bad(res, 'Kjo porosi nuk është e juaja', 403);
     }
 
@@ -600,10 +699,8 @@ app.post('/api/pagesat', async (req, res) => {
         await client.query('ROLLBACK');
         return bad(res, `Porosia #${id} nuk u gjet`, 404);
       }
-      if (req.user.lloji === 'kamarier' && order.punonjes_id !== req.user.punonjes_id) {
-        await client.query('ROLLBACK');
-        return bad(res, `Porosia #${id} nuk është e juaja`, 403);
-      }
+      // Any waiter may settle a live table — tables are routinely served by more
+      // than one person, and the bill is taken by whoever the guests ask.
       if (order.statusi_porosise !== 'E Hapur') {
         await client.query('ROLLBACK');
         return bad(res, `Porosia #${id} është mbyllur tashmë`, 409);
