@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LayoutGrid, Users, Clock, RefreshCw, X, Plus, CreditCard, CalendarClock } from 'lucide-react';
 import api from '../services/api';
 import PaymentModal from './PaymentModal';
+import OrderEditor, { qeNga } from './OrderEditor';
 
 const RIFRESKIM_MS = 15000;
 
@@ -28,17 +29,6 @@ const STILI = {
 const lek = (n) => `${Number(n || 0).toFixed(0)} L`;
 const ora = (t) => (t ? String(t).slice(0, 5) : '');
 
-/** "35 min", "2 h 10 min", "3 ditë" — how long a table has been open. */
-function qeNga(iso) {
-  if (!iso) return '';
-  const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} h ${min % 60} min`;
-  const d = Math.floor(h / 24);
-  return `${d} ${d === 1 ? 'ditë' : 'ditë'}`;
-}
-
 /** Group the flat table list by location, keeping the server's order. */
 function sipasVendndodhjes(tavolinat) {
   const grupet = new Map();
@@ -58,6 +48,7 @@ export default function TavolinatPage({ perdoruesi, onHapPorosi }) {
   const [detaje, setDetaje] = useState(null); // /api/tavolinat/:id/porosite
   const [pagesa, setPagesa] = useState(false);
   const [njoftim, setNjoftim] = useState(null);
+  const [menu, setMenu] = useState(null); // { artikujt, kategorite } once loaded
 
   const ngarko = useCallback(async () => {
     try {
@@ -89,16 +80,32 @@ export default function TavolinatPage({ perdoruesi, onHapPorosi }) {
     return () => clearTimeout(t);
   }, [njoftim]);
 
+  const ngarkoDetajet = async (tavoline_id) => {
+    setDetaje(await api.get(`/api/tavolinat/${tavoline_id}/porosite`));
+  };
+
   const hapTavolinen = async (t) => {
     setZgjedhur(t);
     setDetaje(null);
     try {
-      setDetaje(await api.get(`/api/tavolinat/${t.tavoline_id}/porosite`));
+      await ngarkoDetajet(t.tavoline_id);
     } catch (err) {
       console.error(err);
       setNjoftim({ lloji: 'gabim', tekst: err.message || 'Gabim' });
       setZgjedhur(null);
     }
+    // The item picker needs the menu; fetch it once, in the background.
+    if (!menu) {
+      Promise.all([api.get('/api/menu'), api.get('/api/kategorite')])
+        .then(([artikujt, kategorite]) => setMenu({ artikujt, kategorite }))
+        .catch((err) => console.error(err));
+    }
+  };
+
+  // After a line edit: refresh the panel and the map behind it.
+  const pasNdryshimit = async () => {
+    await ngarkoDetajet(zgjedhur.tavoline_id);
+    ngarko();
   };
 
   const mbyllPanelin = () => { setZgjedhur(null); setDetaje(null); setPagesa(false); };
@@ -221,24 +228,14 @@ export default function TavolinatPage({ perdoruesi, onHapPorosi }) {
             ) : (
               <div className="space-y-3 mb-6">
                 {detaje.porosite.map((p) => (
-                  <div key={p.porosi_id} className="p-4 bg-subtle rounded-xl">
-                    <div className="flex justify-between items-baseline mb-2">
-                      <p className="font-bold">
-                        Porosi #{p.porosi_id} · {p.kamarier}
-                        {p.punonjes_id === perdoruesi?.punonjes_id && <span className="text-ink-subtle"> (ju)</span>}
-                      </p>
-                      <p className="text-sm text-ink-muted"><Clock size={14} className="inline" /> {qeNga(p.ora_porosise)}</p>
-                    </div>
-                    {p.artikujt.map((a) => (
-                      <div key={a.artikull_porosie_id} className="flex justify-between text-sm py-1 border-t">
-                        <span>{a.sasia} × {a.emri}</span>
-                        <span className="font-bold">{lek(a.totali)}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between pt-2 border-t font-black">
-                      <span>Totali</span><span>{lek(p.totali)}</span>
-                    </div>
-                  </div>
+                  <OrderEditor
+                    key={p.porosi_id}
+                    porosi={p}
+                    perdoruesi={perdoruesi}
+                    menu={menu?.artikujt ?? null}
+                    kategorite={menu?.kategorite ?? null}
+                    onChanged={pasNdryshimit}
+                  />
                 ))}
                 <div className="flex justify-between text-2xl font-black px-1">
                   <span>TOTAL</span><span className="text-orange-600 dark:text-orange-400">{lek(detaje.totali)}</span>

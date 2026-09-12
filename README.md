@@ -147,9 +147,9 @@ confirmed booking if any. "Today" is the restaurant's wall clock
 (`TZ_RESTORANTI`, default `Europe/Tirane`) — the database runs in UTC.
 
 `GET /api/tavolinat/:id/porosite` returns a table with its open orders, their
-lines and totals; the page uses it for the table panel, and
-`POST /api/pagesat` with `porosite: [ids]` settles the lot. The page polls
-every 15 s and on tab focus.
+lines and totals; the page uses it for the table panel, where each line can be
+adjusted or removed and items added, and `POST /api/pagesat` with
+`porosite: [ids]` settles the lot. The page polls every 15 s and on tab focus.
 
 ## Validation and invariants
 
@@ -165,6 +165,13 @@ reach the browser verbatim. Specifically:
   A drink that would go below zero fails the whole order with
   `409 { error, emri_pijes, ne_stok }`. Deleting an unpaid order puts the
   drinks back; a paid order cannot be deleted (409).
+- **Editing an open order** — `POST /api/porosite/:id/artikujt` adds items
+  (an item already on the order has its quantity raised rather than getting a
+  second line), `PATCH …/artikujt/:lineId` sets a quantity, `DELETE
+  …/artikujt/:lineId` removes a line; removing the last line removes the
+  order. Each is one transaction that locks the order, refuses a closed one
+  (409), and moves stock by exactly the difference — the same 409 as ordering
+  when a drink runs short. The floor view's table panel edits in place.
 - **Payments** (`POST /api/pagesat`) — settles one order (`porosi_id`) or a
   whole table (`porosite: [ids]`) in one transaction: locks each order, totals
   its lines server-side, records one `pagesat` row per order, closes it and
@@ -183,7 +190,7 @@ npm run test:watch    # re-run on change
 npm run test:coverage # line/branch coverage
 ```
 
-The suite covers every `/api` route and `/health` — 282 tests, ~98% line and
+The suite covers every `/api` route and `/health` — 310 tests, ~98% line and
 ~92% branch coverage across `api/` and `lib/`.
 
 **It installs nothing.** The runner is Node's built-in `node:test` (Node 18.13+),

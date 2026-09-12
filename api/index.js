@@ -447,6 +447,86 @@ class StockError extends Error {
   }
 }
 
+/**
+ * Take `sasia` of a menu item's linked drink out of stock, inside the caller's
+ * transaction. One round trip: lock the stock row, decrement it only if enough
+ * is there, and report what happened. Food (no link) matches no row and is a
+ * no-op; a drink that ran short throws StockError with what is left.
+ */
+async function zbritStokun(client, artikull_id, sasia) {
+  const stock = await client.query(
+    `WITH lidhja AS (
+       SELECT pi.inventar_id, pi.emri_pijes, pi.stoku_aktual
+       FROM artikujt_menu am
+       JOIN pije_inventar pi ON pi.inventar_id = am.inventar_pije_id
+       WHERE am.artikull_id = $2
+       FOR UPDATE OF pi
+     ),
+     u AS (
+       UPDATE pije_inventar pi
+       SET stoku_aktual = pi.stoku_aktual - $1
+       FROM lidhja
+       WHERE pi.inventar_id = lidhja.inventar_id AND pi.stoku_aktual >= $1
+       RETURNING pi.inventar_id, pi.stoku_aktual
+     )
+     SELECT lidhja.emri_pijes, lidhja.stoku_aktual AS para, u.stoku_aktual AS pas
+     FROM lidhja LEFT JOIN u ON u.inventar_id = lidhja.inventar_id`,
+    [sasia, artikull_id]
+  );
+  const row = stock.rows[0];
+  if (row && row.pas == null) throw new StockError(row.emri_pijes, Number(row.para));
+}
+
+/** Put `sasia` of a menu item's linked drink back on the shelf (no-op for food). */
+async function ktheStokun(client, artikull_id, sasia) {
+  await client.query(
+    `UPDATE pije_inventar pi
+     SET stoku_aktual = pi.stoku_aktual + $1
+     FROM artikujt_menu am
+     WHERE am.artikull_id = $2 AND am.inventar_pije_id = pi.inventar_id`,
+    [sasia, artikull_id]
+  );
+}
+
+/**
+ * Lock an order for editing and hand it back, or answer the request and
+ * return null: 404 if it does not exist, 409 if it is no longer open. Must be
+ * called inside a transaction; the caller rolls back on null.
+ */
+async function hapPorosine(client, res, porosi_id) {
+  const found = await client.query(
+    'SELECT porosi_id, tavoline_id, punonjes_id, statusi_porosise FROM porosite WHERE porosi_id = $1 FOR UPDATE',
+    [porosi_id]
+  );
+  const order = found.rows[0];
+  if (!order) {
+    bad(res, 'Porosia nuk u gjet', 404);
+    return null;
+  }
+  if (order.statusi_porosise !== 'E Hapur') {
+    bad(res, `Porosia #${porosi_id} është mbyllur dhe nuk ndryshohet më`, 409);
+    return null;
+  }
+  return order;
+}
+
+/** Parse `{ artikull_id, sasia }` line items; returns the list or an error message. */
+function lexoArtikujt(artikujt) {
+  if (!Array.isArray(artikujt) || artikujt.length === 0) return { error: 'artikujt duhet të jetë një listë jo bosh' };
+  const lines = artikujt.map((a) => ({
+    artikull_id: v.toPosInt(a && a.artikull_id),
+    sasia: v.toPosInt(a && a.sasia),
+  }));
+  if (lines.some((l) => Number.isNaN(l.artikull_id) || Number.isNaN(l.sasia))) {
+    return { error: 'Çdo artikull duhet të ketë artikull_id dhe sasia (numër i plotë > 0)' };
+  }
+  return { lines };
+}
+
+function sendStockError(res, err) {
+  return res.status(409).json({ success: false, error: err.message, emri_pijes: err.emri_pijes, ne_stok: err.ne_stok });
+}
+
 app.get('/api/porosite', async (req, res) => {
   try {
     const { statusi } = req.query;
@@ -529,13 +609,9 @@ app.post('/api/porosite', async (req, res) => {
     return bad(res, 'Plotëso fushat: tavoline_id, punonjes_id, dhe artikujt');
   }
 
-  const lines = artikujt.map((a) => ({
-    artikull_id: v.toPosInt(a && a.artikull_id),
-    sasia: v.toPosInt(a && a.sasia),
-  }));
-  if (lines.some((l) => Number.isNaN(l.artikull_id) || Number.isNaN(l.sasia))) {
-    return bad(res, 'Çdo artikull duhet të ketë artikull_id dhe sasia (numër i plotë > 0)');
-  }
+  const parsed = lexoArtikujt(artikujt);
+  if (parsed.error) return bad(res, parsed.error);
+  const { lines } = parsed;
 
   const client = await pool.connect();
   try {
@@ -554,45 +630,145 @@ app.post('/api/porosite', async (req, res) => {
         'INSERT INTO artikujt_porosise (porosi_id, artikull_id, sasia) VALUES ($1, $2, $3)',
         [porosi_id, line.artikull_id, line.sasia]
       );
-
-      if (trackStock) {
-        // One round trip per line: lock the linked stock row, decrement it only
-        // if enough is there, and report what happened. Food (no link) yields
-        // no row; a drink that ran short yields its row with `pas` NULL.
-        const stock = await client.query(
-          `WITH lidhja AS (
-             SELECT pi.inventar_id, pi.emri_pijes, pi.stoku_aktual
-             FROM artikujt_menu am
-             JOIN pije_inventar pi ON pi.inventar_id = am.inventar_pije_id
-             WHERE am.artikull_id = $2
-             FOR UPDATE OF pi
-           ),
-           u AS (
-             UPDATE pije_inventar pi
-             SET stoku_aktual = pi.stoku_aktual - $1
-             FROM lidhja
-             WHERE pi.inventar_id = lidhja.inventar_id AND pi.stoku_aktual >= $1
-             RETURNING pi.inventar_id, pi.stoku_aktual
-           )
-           SELECT lidhja.emri_pijes, lidhja.stoku_aktual AS para, u.stoku_aktual AS pas
-           FROM lidhja LEFT JOIN u ON u.inventar_id = lidhja.inventar_id`,
-          [line.sasia, line.artikull_id]
-        );
-        const row = stock.rows[0];
-        if (row && row.pas == null) {
-          throw new StockError(row.emri_pijes, Number(row.para));
-        }
-      }
+      if (trackStock) await zbritStokun(client, line.artikull_id, line.sasia);
     }
 
     await client.query('COMMIT');
     res.status(201).json({ success: true, porosi_id });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (err instanceof StockError) {
-      return res.status(409).json({ success: false, error: err.message, emri_pijes: err.emri_pijes, ne_stok: err.ne_stok });
-    }
+    if (err instanceof StockError) return sendStockError(res, err);
     dbError(res, err, 'Gabim në regjistrimin e porosisë');
+  } finally {
+    client.release();
+  }
+});
+
+// ========== ORDER LINES (editing an open order) ==========
+// Any signed-in role may edit a live order — tables are shared on the floor.
+// Each change is one transaction that locks the order, checks it is still
+// open, applies the line change and the matching stock change together.
+
+/** Add items to an open order; an item already on the order has its quantity raised. */
+app.post('/api/porosite/:id/artikujt', async (req, res) => {
+  const porosi_id = v.toPosInt(req.params.id);
+  if (Number.isNaN(porosi_id)) return bad(res, 'id i pavlefshëm');
+  const parsed = lexoArtikujt((req.body || {}).artikujt);
+  if (parsed.error) return bad(res, parsed.error);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const order = await hapPorosine(client, res, porosi_id);
+    if (!order) return await client.query('ROLLBACK');
+    const trackStock = await inventoryIsLinked(client);
+
+    const artikujt = [];
+    for (const line of parsed.lines) {
+      const merged = await client.query(
+        'UPDATE artikujt_porosise SET sasia = sasia + $1 WHERE porosi_id = $2 AND artikull_id = $3 RETURNING artikull_porosie_id, sasia',
+        [line.sasia, porosi_id, line.artikull_id]
+      );
+      let row = merged.rows[0];
+      if (!row) {
+        const inserted = await client.query(
+          'INSERT INTO artikujt_porosise (porosi_id, artikull_id, sasia) VALUES ($1, $2, $3) RETURNING artikull_porosie_id, sasia',
+          [porosi_id, line.artikull_id, line.sasia]
+        );
+        row = inserted.rows[0];
+      }
+      if (trackStock) await zbritStokun(client, line.artikull_id, line.sasia);
+      artikujt.push({ artikull_porosie_id: row.artikull_porosie_id, artikull_id: line.artikull_id, sasia: row.sasia });
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, porosi_id, artikujt });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof StockError) return sendStockError(res, err);
+    dbError(res, err, 'Gabim në shtimin e artikujve');
+  } finally {
+    client.release();
+  }
+});
+
+/** Set a line's quantity; stock moves by the difference. */
+app.patch('/api/porosite/:id/artikujt/:lineId', async (req, res) => {
+  const porosi_id = v.toPosInt(req.params.id);
+  const lineId = v.toPosInt(req.params.lineId);
+  const sasia = v.toPosInt((req.body || {}).sasia);
+  if (Number.isNaN(porosi_id) || Number.isNaN(lineId)) return bad(res, 'id i pavlefshëm');
+  if (Number.isNaN(sasia)) return bad(res, 'sasia duhet të jetë numër i plotë > 0 (për ta hequr, fshije rreshtin)');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const order = await hapPorosine(client, res, porosi_id);
+    if (!order) return await client.query('ROLLBACK');
+
+    const line = await client.query(
+      'SELECT artikull_porosie_id, artikull_id, sasia FROM artikujt_porosise WHERE artikull_porosie_id = $1 AND porosi_id = $2 FOR UPDATE',
+      [lineId, porosi_id]
+    );
+    if (line.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return bad(res, 'Artikulli nuk u gjet në këtë porosi', 404);
+    }
+    const { artikull_id, sasia: para } = line.rows[0];
+    const ndryshimi = sasia - Number(para);
+
+    if (ndryshimi !== 0) {
+      await client.query('UPDATE artikujt_porosise SET sasia = $1 WHERE artikull_porosie_id = $2', [sasia, lineId]);
+      if (await inventoryIsLinked(client)) {
+        if (ndryshimi > 0) await zbritStokun(client, artikull_id, ndryshimi);
+        else await ktheStokun(client, artikull_id, -ndryshimi);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, artikull_porosie_id: lineId, sasia });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof StockError) return sendStockError(res, err);
+    dbError(res, err, 'Gabim në ndryshimin e sasisë');
+  } finally {
+    client.release();
+  }
+});
+
+/** Remove a line and put its drinks back. Removing the last line removes the order. */
+app.delete('/api/porosite/:id/artikujt/:lineId', async (req, res) => {
+  const porosi_id = v.toPosInt(req.params.id);
+  const lineId = v.toPosInt(req.params.lineId);
+  if (Number.isNaN(porosi_id) || Number.isNaN(lineId)) return bad(res, 'id i pavlefshëm');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const order = await hapPorosine(client, res, porosi_id);
+    if (!order) return await client.query('ROLLBACK');
+
+    const removed = await client.query(
+      'DELETE FROM artikujt_porosise WHERE artikull_porosie_id = $1 AND porosi_id = $2 RETURNING artikull_id, sasia',
+      [lineId, porosi_id]
+    );
+    if (removed.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return bad(res, 'Artikulli nuk u gjet në këtë porosi', 404);
+    }
+    const { artikull_id, sasia } = removed.rows[0];
+    if (await inventoryIsLinked(client)) await ktheStokun(client, artikull_id, Number(sasia));
+
+    // An order with nothing on it is not an order.
+    const left = await client.query('SELECT 1 FROM artikujt_porosise WHERE porosi_id = $1 LIMIT 1', [porosi_id]);
+    const porosi_fshire = left.rows.length === 0;
+    if (porosi_fshire) await client.query('DELETE FROM porosite WHERE porosi_id = $1', [porosi_id]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, artikull_porosie_id: lineId, porosi_fshire });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    dbError(res, err, 'Gabim në heqjen e artikullit');
   } finally {
     client.release();
   }
