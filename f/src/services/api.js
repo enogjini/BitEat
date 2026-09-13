@@ -67,18 +67,7 @@ function currentToken() {
 // ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
-async function request(method, path, body) {
-  const headers = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const token = currentToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
+async function handleResponse(res, path) {
   const text = await res.text();
   let data = null;
   try {
@@ -100,11 +89,44 @@ async function request(method, path, body) {
   return data;
 }
 
+async function request(method, path, body) {
+  const headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = currentToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return handleResponse(res, path);
+}
+
+/**
+ * POST a `FormData` body (a file upload). Deliberately skips the JSON
+ * `Content-Type`/`stringify` that `request` always applies — the browser
+ * must set its own multipart boundary on the header itself.
+ */
+async function upload(path, formData) {
+  const headers = {};
+  const token = currentToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+  return handleResponse(res, path);
+}
+
 const api = {
   get: (path) => request('GET', path),
   post: (path, body) => request('POST', path, body),
   patch: (path, body) => request('PATCH', path, body),
   delete: (path) => request('DELETE', path),
+  upload: (path, formData) => upload(path, formData),
 
   /**
    * Sign in and persist the session. Resolves with the user, or throws an

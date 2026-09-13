@@ -3,6 +3,7 @@ import { LayoutGrid, Users, Clock, RefreshCw, X, Plus, CreditCard, CalendarClock
 import api from '../services/api';
 import PaymentModal from './PaymentModal';
 import OrderEditor, { qeNga } from './OrderEditor';
+import ScanReceiptButton from './ScanReceiptButton';
 
 const RIFRESKIM_MS = 15000;
 
@@ -251,6 +252,9 @@ export default function TavolinatPage({ perdoruesi, onHapPorosi }) {
                 >
                   <Plus size={20} className="inline" /> {detaje && detaje.porosite.length > 0 ? 'SHTO POROSI' : 'HAP POROSI'}
                 </button>
+              )}
+              {perdoruesi?.lloji !== 'admin' && (
+                <ScanReceiptButton tavolineId={zgjedhur.tavoline_id} onChanged={pasNdryshimit} />
               )}
               {detaje && detaje.porosite.length > 0 && (
                 <button

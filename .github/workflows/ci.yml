@@ -21,9 +21,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # The suite has no third-party dependencies: it runs on Node's built-in
-      # test runner against a hand-written `pg` double, so there is nothing to
-      # install and nothing to reach the network for.
+      # tesseract.js/multer (invoice scanning) are the suite's first
+      # third-party dependencies — everything else it still runs on Node's
+      # built-in test runner against hand-written `pg`/OCR doubles, so no
+      # network is needed once installed.
+      - name: Install dependencies
+        run: npm ci
+
       - name: Run API tests
         run: npm test
 

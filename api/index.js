@@ -1,8 +1,11 @@
 const express = require('express');
+const multer = require('multer');
 const { Pool } = require('pg');
 const cors = require('cors');
 const auth = require('../lib/auth');
 const v = require('../lib/validate');
+const ocr = require('../lib/ocr');
+const { parseLines, matchToMenu } = require('../lib/invoiceParser');
 
 const app = express();
 
@@ -18,6 +21,15 @@ const corsOrigins = (process.env.CORS_ORIGIN ?? (process.env.NODE_ENV === 'produ
   .filter(Boolean);
 app.use(cors({ origin: corsOrigins.includes('*') ? '*' : corsOrigins }));
 app.use(express.json());
+
+// Receipt photos for the invoice-scan endpoint. Memory storage only — nothing
+// touches disk, which keeps this safe on Vercel's read-only serverless
+// filesystem and avoids leaving temp files behind.
+const skanimUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
+});
 
 // ----------------------------------------------------------------------------
 // Database connection
@@ -389,6 +401,88 @@ app.patch('/api/tavolinat/:id/gjendja', async (req, res) => {
   }
 });
 
+/**
+ * Photograph a table's paper order slip: OCR it, fuzzy-match the recognized
+ * lines against the (available) menu, and either merge them into the table's
+ * already-open order or start a new one — reusing `krijoPorosi`/
+ * `shtoArtikujtNePorosi`, the same create-vs-merge logic the manual order
+ * screens use. Fully automatic: there is no confirmation step, so nothing is
+ * ever guessed — a line only applies if it clears the match-confidence bar in
+ * `lib/invoiceParser.js`, everything else comes back as `tekst_pa_perputhje`
+ * for staff to add by hand — and every scan is logged to
+ * `skanimet_faturave` (what was read, what matched) so a misread is always
+ * traceable after the fact.
+ */
+app.post('/api/tavolinat/:id/skano-faturen', skanimUpload.single('foto'), async (req, res) => {
+  const tavoline_id = v.toPosInt(req.params.id);
+  if (Number.isNaN(tavoline_id)) return bad(res, 'id i pavlefshëm');
+  if (!req.file) return bad(res, 'Kërkohet një foto (fusha "foto")');
+
+  // A waiter scans for themselves; only staff may attribute the scan to someone else.
+  const punonjes_id = req.user.lloji === 'kamarier'
+    ? req.user.punonjes_id
+    : v.toPosInt((req.body || {}).punonjes_id);
+  if (Number.isNaN(punonjes_id)) return bad(res, 'punonjes_id i pavlefshëm');
+
+  let teksti_ocr;
+  try {
+    teksti_ocr = await ocr.recognizeText(req.file.buffer);
+  } catch (err) {
+    console.error(err);
+    return bad(res, 'Nuk u lexua dot fotoja', 500);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const menu = await client.query(
+      'SELECT artikull_id, emri, cmimi FROM artikujt_menu WHERE eshte_i_disponueshem IS DISTINCT FROM false'
+    );
+    const { matched, unmatched } = matchToMenu(parseLines(teksti_ocr), menu.rows);
+
+    let porosi_id = null;
+    let u_krijua = false;
+
+    if (matched.length > 0) {
+      const trackStock = await inventoryIsLinked(client);
+      const lines = matched.map((m) => ({ artikull_id: m.artikull_id, sasia: m.sasia }));
+      const open = await client.query(
+        "SELECT porosi_id FROM porosite WHERE tavoline_id = $1 AND statusi_porosise = 'E Hapur' ORDER BY porosi_id LIMIT 1",
+        [tavoline_id]
+      );
+      if (open.rows.length > 0) {
+        porosi_id = open.rows[0].porosi_id;
+        await shtoArtikujtNePorosi(client, porosi_id, lines, trackStock);
+      } else {
+        porosi_id = await krijoPorosi(client, { tavoline_id, punonjes_id, lines, trackStock });
+        u_krijua = true;
+      }
+    }
+
+    await client.query(
+      `INSERT INTO skanimet_faturave (tavoline_id, porosi_id, punonjes_id, teksti_ocr, artikujt_gjetur, rreshta_pa_perputhje)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [tavoline_id, porosi_id, punonjes_id, teksti_ocr, JSON.stringify(matched), JSON.stringify(unmatched)]
+    );
+
+    await client.query('COMMIT');
+    res.status(matched.length > 0 ? 201 : 200).json({
+      success: true,
+      porosi_id,
+      u_krijua,
+      artikujt: matched,
+      tekst_pa_perputhje: unmatched,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof StockError) return sendStockError(res, err);
+    dbError(res, err, 'Gabim në përpunimin e faturës së skanuar');
+  } finally {
+    client.release();
+  }
+});
+
 // ========== CATEGORIES & EMPLOYEES ==========
 app.get('/api/kategorite', async (req, res) => {
   try {
@@ -510,6 +604,49 @@ async function hapPorosine(client, res, porosi_id) {
   return order;
 }
 
+/** Create a new open order for a table with the given lines, inside the caller's transaction. */
+async function krijoPorosi(client, { tavoline_id, punonjes_id, lines, trackStock }) {
+  const porosiRes = await client.query(
+    'INSERT INTO porosite (tavoline_id, punonjes_id, statusi_porosise, ora_porosise) VALUES ($1, $2, $3, NOW()) RETURNING porosi_id',
+    [tavoline_id, punonjes_id, 'E Hapur']
+  );
+  const porosi_id = porosiRes.rows[0].porosi_id;
+  for (const line of lines) {
+    await client.query(
+      'INSERT INTO artikujt_porosise (porosi_id, artikull_id, sasia) VALUES ($1, $2, $3)',
+      [porosi_id, line.artikull_id, line.sasia]
+    );
+    if (trackStock) await zbritStokun(client, line.artikull_id, line.sasia);
+  }
+  return porosi_id;
+}
+
+/**
+ * Merge lines into an already-open order, inside the caller's transaction: an
+ * item already on the order has its quantity raised, otherwise a new line is
+ * inserted. Returns the affected lines as `{artikull_porosie_id, artikull_id, sasia}`.
+ */
+async function shtoArtikujtNePorosi(client, porosi_id, lines, trackStock) {
+  const artikujt = [];
+  for (const line of lines) {
+    const merged = await client.query(
+      'UPDATE artikujt_porosise SET sasia = sasia + $1 WHERE porosi_id = $2 AND artikull_id = $3 RETURNING artikull_porosie_id, sasia',
+      [line.sasia, porosi_id, line.artikull_id]
+    );
+    let row = merged.rows[0];
+    if (!row) {
+      const inserted = await client.query(
+        'INSERT INTO artikujt_porosise (porosi_id, artikull_id, sasia) VALUES ($1, $2, $3) RETURNING artikull_porosie_id, sasia',
+        [porosi_id, line.artikull_id, line.sasia]
+      );
+      row = inserted.rows[0];
+    }
+    if (trackStock) await zbritStokun(client, line.artikull_id, line.sasia);
+    artikujt.push({ artikull_porosie_id: row.artikull_porosie_id, artikull_id: line.artikull_id, sasia: row.sasia });
+  }
+  return artikujt;
+}
+
 /** Parse `{ artikull_id, sasia }` line items; returns the list or an error message. */
 function lexoArtikujt(artikujt) {
   if (!Array.isArray(artikujt) || artikujt.length === 0) return { error: 'artikujt duhet të jetë një listë jo bosh' };
@@ -617,22 +754,7 @@ app.post('/api/porosite', async (req, res) => {
   try {
     await client.query('BEGIN');
     const trackStock = await inventoryIsLinked(client);
-
-    const porosiRes = await client.query(
-      'INSERT INTO porosite (tavoline_id, punonjes_id, statusi_porosise, ora_porosise) VALUES ($1, $2, $3, NOW()) RETURNING porosi_id',
-      [tavoline_id, punonjes_id, 'E Hapur']
-    );
-
-    const porosi_id = porosiRes.rows[0].porosi_id;
-
-    for (const line of lines) {
-      await client.query(
-        'INSERT INTO artikujt_porosise (porosi_id, artikull_id, sasia) VALUES ($1, $2, $3)',
-        [porosi_id, line.artikull_id, line.sasia]
-      );
-      if (trackStock) await zbritStokun(client, line.artikull_id, line.sasia);
-    }
-
+    const porosi_id = await krijoPorosi(client, { tavoline_id, punonjes_id, lines, trackStock });
     await client.query('COMMIT');
     res.status(201).json({ success: true, porosi_id });
   } catch (err) {
@@ -662,25 +784,7 @@ app.post('/api/porosite/:id/artikujt', async (req, res) => {
     const order = await hapPorosine(client, res, porosi_id);
     if (!order) return await client.query('ROLLBACK');
     const trackStock = await inventoryIsLinked(client);
-
-    const artikujt = [];
-    for (const line of parsed.lines) {
-      const merged = await client.query(
-        'UPDATE artikujt_porosise SET sasia = sasia + $1 WHERE porosi_id = $2 AND artikull_id = $3 RETURNING artikull_porosie_id, sasia',
-        [line.sasia, porosi_id, line.artikull_id]
-      );
-      let row = merged.rows[0];
-      if (!row) {
-        const inserted = await client.query(
-          'INSERT INTO artikujt_porosise (porosi_id, artikull_id, sasia) VALUES ($1, $2, $3) RETURNING artikull_porosie_id, sasia',
-          [porosi_id, line.artikull_id, line.sasia]
-        );
-        row = inserted.rows[0];
-      }
-      if (trackStock) await zbritStokun(client, line.artikull_id, line.sasia);
-      artikujt.push({ artikull_porosie_id: row.artikull_porosie_id, artikull_id: line.artikull_id, sasia: row.sasia });
-    }
-
+    const artikujt = await shtoArtikujtNePorosi(client, porosi_id, parsed.lines, trackStock);
     await client.query('COMMIT');
     res.status(201).json({ success: true, porosi_id, artikujt });
   } catch (err) {
@@ -1246,7 +1350,7 @@ app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400)) {
     return bad(res, 'JSON i pavlefshëm');
   }
-  if (err.type === 'entity.too.large') {
+  if (err.type === 'entity.too.large' || err.code === 'LIMIT_FILE_SIZE') {
     return bad(res, 'Kërkesa është shumë e madhe', 413);
   }
   console.error(err.stack);

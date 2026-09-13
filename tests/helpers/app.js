@@ -13,10 +13,12 @@ const http = require('node:http');
 const Module = require('node:module');
 
 const { db } = require('./fake-pg');
+const fakeOcr = require('./fake-ocr');
 const { authHeader } = require('./auth');
 
 const API_PATH = require.resolve('../../api/index.js');
 const FAKE_PG_PATH = require.resolve('./fake-pg.js');
+const FAKE_OCR_PATH = require.resolve('./fake-ocr.js');
 
 let hooked = false;
 function hookPg() {
@@ -24,6 +26,9 @@ function hookPg() {
   const load = Module._load;
   Module._load = function (request, ...rest) {
     if (request === 'pg') return load.call(this, FAKE_PG_PATH, ...rest);
+    // api/index.js requires this exact relative path; swap it for the fake
+    // so tests never spin up real Tesseract recognition.
+    if (request === '../lib/ocr') return load.call(this, FAKE_OCR_PATH, ...rest);
     return load.call(this, request, ...rest);
   };
   hooked = true;
@@ -102,4 +107,4 @@ async function startServer(env = {}) {
   };
 }
 
-module.exports = { startServer, loadApp, db };
+module.exports = { startServer, loadApp, db, fakeOcr };

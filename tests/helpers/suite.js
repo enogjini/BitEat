@@ -1,7 +1,7 @@
 'use strict';
 
 const { before, after, beforeEach } = require('node:test');
-const { startServer, db } = require('./app');
+const { startServer, db, fakeOcr } = require('./app');
 
 /**
  * Boot the API once per test file and hand back a live context.
@@ -24,7 +24,10 @@ function useServer(env = {}) {
     ctx._close = server.close;
   });
 
-  beforeEach(() => db.reset());
+  beforeEach(() => {
+    db.reset();
+    fakeOcr.reset();
+  });
 
   after(async () => {
     if (ctx._close) await ctx._close();
@@ -33,4 +36,4 @@ function useServer(env = {}) {
   return ctx;
 }
 
-module.exports = { useServer, db };
+module.exports = { useServer, db, fakeOcr };

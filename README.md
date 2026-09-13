@@ -172,6 +172,15 @@ reach the browser verbatim. Specifically:
   order. Each is one transaction that locks the order, refuses a closed one
   (409), and moves stock by exactly the difference — the same 409 as ordering
   when a drink runs short. The floor view's table panel edits in place.
+- **Scanning a slip** (`POST /api/tavolinat/:id/skano-faturen`) — OCRs a
+  photographed paper order slip (self-hosted `tesseract.js`, vendored
+  `sqi+eng` trained data so recognition never reaches the network), matches
+  recognized lines against the available menu, and reuses the two order
+  endpoints above to merge into the table's open order or start a new one.
+  Fully automatic — no confirmation screen — so nothing is guessed: a line
+  only applies above a match-confidence bar, everything else comes back as
+  `tekst_pa_perputhje` for staff to add by hand, and every scan (matched and
+  not) is logged to `skanimet_faturave` for after-the-fact review.
 - **Payments** (`POST /api/pagesat`) — settles one order (`porosi_id`) or a
   whole table (`porosite: [ids]`) in one transaction: locks each order, totals
   its lines server-side, records one `pagesat` row per order, closes it and
@@ -263,6 +272,7 @@ psql "$DATABASE_URL_UNPOOLED" -f db/migrations/0001_stock_tracking.sql
 | Migration | What it does | Why |
 |-----------|--------------|-----|
 | `0001_stock_tracking.sql` | Repairs the `vendos_cmimin_artikullit` trigger, drops the `trg_update_drink_inventory` trigger, adds non-negative CHECKs on `pije_inventar.stoku_aktual` and `artikujt_menu.cmimi` | `pije_inventar` was renamed from `inventar_pijesh` and both triggers still used the old name, so **inserting any drink line failed** — drinks could not be ordered. Stock is now decremented by the API instead. |
+| `0002_invoice_scans.sql` | Adds `skanimet_faturave`, an audit table | The invoice-scan endpoint creates/merges orders with no confirmation step; every scan (matched and unmatched) is logged so a misread is traceable after the fact. |
 
 The API tolerates a database that has not had `0001` applied: it probes for
 `artikujt_menu.inventar_pije_id` on each order and skips stock tracking (with a
@@ -284,4 +294,5 @@ migration:
   never fire (and the last one references a `pagesat.paguar_me` column that
   does not exist).
 - `artikujt_menu.eshte_i_disponueshem` (availability) is not yet enforced when
-  ordering.
+  ordering through the normal picker — only the invoice-scan endpoint filters
+  by it today.
