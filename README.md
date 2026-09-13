@@ -4,7 +4,7 @@ Full-stack app:
 
 - **Frontend** — React (Create React App) in [`f/`](f/), light + dark themed
 - **API** — Express in [`api/index.js`](api/index.js), deployed as Vercel serverless functions
-- **Database** — PostgreSQL (Supabase in production)
+- **Database** — PostgreSQL (Neon in production, via the Vercel integration)
 
 Sessions are bearer tokens (see [Authentication](#authentication)); the API
 validates every write, tracks drink stock as orders are placed, and settles a
@@ -70,7 +70,7 @@ The frontend calls the API **same-origin** (`/api/...`), so no CORS config or
 
 | Name | Value |
 |------|-------|
-| `DATABASE_URL` | Supabase **connection pooler** string (port `6543`, `?pgbouncer=true`) |
+| `DATABASE_URL` | Neon **pooled** connection string. The Neon↔Vercel integration sets this and `DATABASE_URL_UNPOOLED` (direct; use that one for migrations). |
 | `JWT_SECRET` | Long random string that signs session tokens. The API refuses to issue sessions in production without it; rotating it signs everyone out. |
 
 Optional: `CORS_ORIGIN` (comma-separated origins, or `*`) if something other
@@ -239,8 +239,10 @@ flow once.
 
 ## Database
 
-Schema + seed data live in the Supabase project `BitEat`. To reprovision from a
-local dump:
+Production is the Neon database behind the Vercel project `bit-eat`; the
+local `restaurant` database is the dump it was provisioned from (a Supabase
+project named `BitEat` also exists but is paused and unused). To reprovision
+from a local dump:
 
 ```bash
 pg_dump -U postgres -h localhost -d restaurant --no-owner --no-privileges -f dump.sql
@@ -251,10 +253,11 @@ pg_dump -U postgres -h localhost -d restaurant --no-owner --no-privileges -f dum
 
 Schema changes live in [`db/migrations/`](db/migrations/), numbered, each
 idempotent (safe to re-run). Apply them in order to every database the API
-talks to — local first, then Supabase:
+talks to — local first, then production over the **unpooled** URL:
 
 ```bash
-psql "$DATABASE_URL" -f db/migrations/0001_stock_tracking.sql
+vercel env pull .env.production.local --environment=production   # gitignored
+psql "$DATABASE_URL_UNPOOLED" -f db/migrations/0001_stock_tracking.sql
 ```
 
 | Migration | What it does | Why |
